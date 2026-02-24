@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import AdminButton from '@/app/components/AdminButton.jsx';
 import { getSql } from '@/lib/db.js';
 
 export const dynamic = 'force-dynamic';
@@ -58,6 +59,21 @@ export default async function CampaignDetailPage({ params }) {
     <main style={{ padding: 24 }}>
       <h1>Campaign: {campaign.name}</h1>
       <p><Link href="/campaigns">← Back to campaigns</Link></p>
+
+      <div style={{ marginBottom: 14 }}>
+        <b>Actions:</b>
+        <span style={{ marginLeft: 10, fontSize: 12, color: '#555' }}>
+          (requires ADMIN_TOKEN)
+        </span>
+        <div style={{ marginTop: 8 }}>
+          <AdminButton
+            label="Start campaign"
+            action="/api/admin/campaign/start"
+            body={{ campaign_id: campaign.id }}
+            confirmText={`Startować kampanię \"${campaign.name}\"? (status→running)`}
+          />
+        </div>
+      </div>
 
       <table style={{ borderCollapse: 'collapse', marginBottom: 20 }}>
         <tbody>

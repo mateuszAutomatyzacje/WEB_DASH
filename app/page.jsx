@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import AdminButton from '@/app/components/AdminButton.jsx';
 import { getSql } from '@/lib/db.js';
 import { computeLiveMetrics } from '@/lib/metrics.js';
 
@@ -15,6 +16,7 @@ function Nav() {
       <Link href="/leads">Leads</Link>
       <Link href="/queue">Queue</Link>
       <Link href="/workers">Workers</Link>
+      <Link href="/warm-leads">Warm leads</Link>
       <a href="/api/health">/api/health</a>
     </nav>
   );
@@ -94,6 +96,14 @@ export default async function Page() {
         </p>
 
         <h2>KPIs</h2>
+        <div style={{ display: 'flex', gap: 12, marginBottom: 14, alignItems: 'center' }}>
+          <span style={{ fontSize: 12, color: '#555' }}>Admin:</span>
+          <AdminButton
+            label="Generate snapshot now"
+            action="/api/admin/snapshot"
+            confirmText="Wygenerować snapshot (report_snapshots) teraz?"
+          />
+        </div>
         <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 22 }}>
           <tbody>
             {[
