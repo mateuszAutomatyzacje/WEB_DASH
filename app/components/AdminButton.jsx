@@ -14,15 +14,12 @@ export default function AdminButton({
 
   async function run() {
     if (confirmText && !confirm(confirmText)) return;
-    const token = prompt('ADMIN_TOKEN (Railway env)');
-    if (!token) return;
-
     setLoading(true);
     setMsg('');
     try {
       const res = await fetch(action, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-admin-token': token },
+        headers: { 'Content-Type': 'application/json' },
         body: body ? JSON.stringify(body) : '{}',
       });
       const txt = await res.text();
