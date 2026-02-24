@@ -103,6 +103,7 @@ export default async function Page() {
             action="/api/admin/snapshot"
             confirmText="Wygenerować snapshot (report_snapshots) teraz?"
           />
+          <a href="/api/report/xls" style={{ fontSize: 12 }}>Download report XLS</a>
         </div>
         <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 22 }}>
           <tbody>
