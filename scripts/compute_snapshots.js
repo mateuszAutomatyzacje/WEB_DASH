@@ -1,7 +1,5 @@
-import { sql } from '../lib/db.js';
-
-// MVP snapshot job: counts per lead status + campaign status.
-// Writes into report_snapshots for today's date.
+import { getSql } from '../lib/db.js';
+import { computeLiveMetrics } from '../lib/metrics.js';
 
 function todayISO() {
   const d = new Date();
@@ -13,24 +11,8 @@ function todayISO() {
 
 const snapshot_date = todayISO();
 
-const leadCounts = await sql`
-  select status::text as status, count(*)::int as count
-  from leads
-  group by status
-  order by count desc
-`;
-
-const campaignCounts = await sql`
-  select status::text as status, count(*)::int as count
-  from campaigns
-  group by status
-  order by count desc
-`;
-
-const metrics = {
-  lead_counts: Object.fromEntries(leadCounts.map(r => [r.status, r.count])),
-  campaign_counts: Object.fromEntries(campaignCounts.map(r => [r.status, r.count])),
-};
+const sql = getSql();
+const metrics = await computeLiveMetrics(sql);
 
 await sql`
   insert into report_snapshots (snapshot_date, scope, metrics)
