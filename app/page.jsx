@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import AdminButton from '@/app/components/AdminButton.jsx';
+import GuardPollerTest from '@/app/components/GuardPollerTest.jsx';
 import { getSql } from '@/lib/db.js';
 import { computeLiveMetrics } from '@/lib/metrics.js';
 
@@ -95,6 +96,8 @@ export default async function Page() {
           {overview.snapshot_date ? ` | snapshot_date: ${String(overview.snapshot_date)}` : ''}
         </p>
 
+        <GuardPollerTest />
+
         <h2>KPIs</h2>
         <div style={{ display: 'flex', gap: 12, marginBottom: 14, alignItems: 'center' }}>
           <span style={{ fontSize: 12, color: '#555' }}>Admin:</span>
@@ -140,6 +143,7 @@ export default async function Page() {
       <main style={{ padding: 24 }}>
         <h1>LeadGuard Dashboard</h1>
         <Nav />
+        <GuardPollerTest />
         <p>Brak tabel / brak danych jeszcze. Najpierw wgraj schema do Postgresa.</p>
         <pre style={{ whiteSpace: 'pre-wrap', background: '#111', color: '#eee', padding: 12, borderRadius: 8 }}>
           {String(e?.message || e)}
