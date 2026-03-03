@@ -5,15 +5,8 @@
 
 export async function POST(req) {
   try {
-    const webhookUrl = process.env.N8N_GUARD_WEBHOOK_URL;
-    const token = process.env.N8N_GUARD_TOKEN;
-
-    if (!webhookUrl) {
-      return new Response('Missing env N8N_GUARD_WEBHOOK_URL', { status: 500 });
-    }
-    if (!token) {
-      return new Response('Missing env N8N_GUARD_TOKEN', { status: 500 });
-    }
+    const webhookUrl = process.env.N8N_GUARD_WEBHOOK_URL || 'https://n8n-production-c340.up.railway.app/webhook/campaign-guard-poll';
+    const token = process.env.N8N_GUARD_TOKEN || 'SUPER_SECRET_TOKEN';
 
     let body = {};
     try {
