@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { getSql } from '@/lib/db.js';
 import GuardPollerTest from '@/app/components/GuardPollerTest.jsx';
+import CampaignConfigPanel from '@/app/components/CampaignConfigPanel.jsx';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,6 +30,7 @@ export default async function CampaignsPage() {
     <main style={{ padding: 24 }}>
       <h1>Campaigns</h1>
       <p><Link href="/">← Overview</Link></p>
+      <CampaignConfigPanel />
       <GuardPollerTest />
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
