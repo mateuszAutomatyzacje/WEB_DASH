@@ -17,7 +17,7 @@ export default async function CampaignsPage() {
       c.status::text as status,
       c.created_at,
       count(cl.id)::int as leads_total,
-      count(cl.id) filter (where cl.state in ('queued','in_campaign'))::int as active_in_queue,
+      count(cl.id) filter (where cl.state = 'in_campaign')::int as active_in_queue,
       count(cl.id) filter (where cl.stop_reason = 'replied')::int as replied
     from campaigns c
     left join campaign_leads cl on cl.campaign_id = c.id
