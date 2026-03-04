@@ -35,53 +35,81 @@ export default function CampaignConfigPanel() {
     <div style={{ border: '1px solid #ddd', borderRadius: 8, padding: 12, marginBottom: 14 }}>
       <h3 style={{ marginTop: 0 }}>Campaign config (test/admin)</h3>
 
-      <div style={{ display: 'grid', gap: 8, maxWidth: 760 }}>
-        <label>
-          Name
-          <input value={name} onChange={(e) => setName(e.target.value)} style={{ width: '100%' }} />
-        </label>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(480px, 760px) 220px', gap: 14, alignItems: 'start' }}>
+        <div style={{ display: 'grid', gap: 8 }}>
+          <label>
+            Name
+            <input value={name} onChange={(e) => setName(e.target.value)} style={{ width: '100%' }} />
+          </label>
 
-        <label>
-          Description
-          <input value={description} onChange={(e) => setDescription(e.target.value)} style={{ width: '100%' }} />
-        </label>
+          <label>
+            Description
+            <input value={description} onChange={(e) => setDescription(e.target.value)} style={{ width: '100%' }} />
+          </label>
 
-        <label>
-          Status
-          <select value={status} onChange={(e) => setStatus(e.target.value)}>
-            <option value="draft">draft</option>
-            <option value="ready">ready</option>
-            <option value="running">running</option>
-            <option value="paused">paused</option>
-            <option value="stopped">stopped</option>
-            <option value="archived">archived</option>
-          </select>
-        </label>
+          <label>
+            Status
+            <select value={status} onChange={(e) => setStatus(e.target.value)}>
+              <option value="draft">draft</option>
+              <option value="ready">ready</option>
+              <option value="running">running</option>
+              <option value="paused">paused</option>
+              <option value="stopped">stopped</option>
+              <option value="archived">archived</option>
+            </select>
+          </label>
 
-        <label>
-          Settings JSON
-          <textarea rows={4} value={settingsText} onChange={(e) => setSettingsText(e.target.value)} style={{ width: '100%' }} />
-        </label>
-      </div>
+          <label>
+            Settings JSON
+            <textarea rows={4} value={settingsText} onChange={(e) => setSettingsText(e.target.value)} style={{ width: '100%' }} />
+          </label>
 
-      <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <button
-          disabled={loading}
-          onClick={async () => {
-            let settings = {};
-            try { settings = settingsText ? JSON.parse(settingsText) : {}; } catch { setMsg('ERR: settings JSON invalid'); return; }
-            await callApi('/api/admin/campaign/create', { name, description, status, settings });
-          }}
-        >
-          Create campaign
-        </button>
+          <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              disabled={loading}
+              onClick={async () => {
+                let settings = {};
+                try { settings = settingsText ? JSON.parse(settingsText) : {}; } catch { setMsg('ERR: settings JSON invalid'); return; }
+                await callApi('/api/admin/campaign/create', { name, description, status, settings });
+              }}
+            >
+              Create campaign
+            </button>
 
-        <button
-          disabled={loading}
-          onClick={() => callApi('/api/admin/campaign/ensure-evergreen', { name })}
-        >
-          Ensure evergreen running
-        </button>
+            <button
+              disabled={loading}
+              onClick={() => callApi('/api/admin/campaign/ensure-evergreen', { name })}
+            >
+              Ensure evergreen running
+            </button>
+
+            <button
+              disabled={loading}
+              onClick={() => callApi('/api/admin/campaign/evergreen-status', { name, status: 'stopped' })}
+            >
+              Stop evergreen
+            </button>
+
+            <button
+              disabled={loading}
+              onClick={() => callApi('/api/admin/campaign/evergreen-status', { name, status: 'running' })}
+            >
+              Start evergreen
+            </button>
+          </div>
+        </div>
+
+        <aside style={{ border: '1px solid #eee', borderRadius: 8, padding: 10, fontSize: 12 }}>
+          <b>Statusy kampanii</b>
+          <ul style={{ margin: '8px 0 0 16px', padding: 0, lineHeight: 1.7 }}>
+            <li>draft</li>
+            <li>ready</li>
+            <li>running</li>
+            <li>paused</li>
+            <li>stopped</li>
+            <li>archived</li>
+          </ul>
+        </aside>
       </div>
 
       {msg ? <div style={{ marginTop: 8, fontSize: 12 }}>{msg}</div> : null}
