@@ -5,7 +5,6 @@ import { useState } from 'react';
 export default function CampaignConfigPanel() {
   const [name, setName] = useState('AI_KANCELARIE_EVERGREEN');
   const [description, setDescription] = useState('Kampania ciągła dla nowych leadów');
-  const [status, setStatus] = useState('running');
   const [settingsText, setSettingsText] = useState('{"mode":"evergreen","send_interval_min":5}');
   const [msg, setMsg] = useState('');
   const [loading, setLoading] = useState(false);
@@ -48,18 +47,6 @@ export default function CampaignConfigPanel() {
           </label>
 
           <label>
-            Status
-            <select value={status} onChange={(e) => setStatus(e.target.value)}>
-              <option value="draft">draft</option>
-              <option value="ready">ready</option>
-              <option value="running">running</option>
-              <option value="paused">paused</option>
-              <option value="stopped">stopped</option>
-              <option value="archived">archived</option>
-            </select>
-          </label>
-
-          <label>
             Settings JSON
             <textarea rows={4} value={settingsText} onChange={(e) => setSettingsText(e.target.value)} style={{ width: '100%' }} />
           </label>
@@ -70,7 +57,7 @@ export default function CampaignConfigPanel() {
               onClick={async () => {
                 let settings = {};
                 try { settings = settingsText ? JSON.parse(settingsText) : {}; } catch { setMsg('ERR: settings JSON invalid'); return; }
-                await callApi('/api/admin/campaign/create', { name, description, status, settings });
+                await callApi('/api/admin/campaign/create', { name, description, status: 'running', settings });
               }}
             >
               Create campaign
