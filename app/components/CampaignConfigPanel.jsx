@@ -1,6 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+
+const STATUSES = ['draft', 'ready', 'running', 'paused', 'stopped', 'archived'];
 
 export default function CampaignConfigPanel() {
   const [name, setName] = useState('AI_KANCELARIE_EVERGREEN');
@@ -8,6 +10,31 @@ export default function CampaignConfigPanel() {
   const [settingsText, setSettingsText] = useState('{"mode":"evergreen","send_interval_min":5}');
   const [msg, setMsg] = useState('');
   const [loading, setLoading] = useState(false);
+  const [currentStatus, setCurrentStatus] = useState('unknown');
+
+  async function refreshStatus(targetName = name) {
+    try {
+      const res = await fetch(`/api/admin/campaign/get-status?name=${encodeURIComponent(targetName)}`, { cache: 'no-store' });
+      const data = await res.json();
+      if (data?.found && data?.status) setCurrentStatus(data.status);
+      else setCurrentStatus('not_created');
+    } catch {
+      setCurrentStatus('unknown');
+    }
+  }
+
+  useEffect(() => {
+    refreshStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const badgeStyle = useMemo(() => {
+    if (currentStatus === 'running') return { background: '#0a7d22', color: '#fff' };
+    if (currentStatus === 'paused') return { background: '#8a6d00', color: '#fff' };
+    if (currentStatus === 'stopped') return { background: '#a00020', color: '#fff' };
+    if (currentStatus === 'not_created') return { background: '#666', color: '#fff' };
+    return { background: '#2d2d2d', color: '#fff' };
+  }, [currentStatus]);
 
   async function callApi(path, body) {
     setLoading(true);
@@ -22,7 +49,8 @@ export default function CampaignConfigPanel() {
       if (!res.ok) throw new Error(text || `HTTP ${res.status}`);
       const data = (() => { try { return JSON.parse(text); } catch { return { raw: text }; } })();
       setMsg(`OK: ${data?.campaign_id || data?.id || 'done'}`);
-      setTimeout(() => window.location.reload(), 500);
+      await refreshStatus(body?.name || name);
+      setTimeout(() => window.location.reload(), 400);
     } catch (e) {
       setMsg(`ERR: ${String(e?.message || e)}`);
     } finally {
@@ -63,24 +91,15 @@ export default function CampaignConfigPanel() {
               Create campaign
             </button>
 
-            <button
-              disabled={loading}
-              onClick={() => callApi('/api/admin/campaign/ensure-evergreen', { name })}
-            >
+            <button disabled={loading} onClick={() => callApi('/api/admin/campaign/ensure-evergreen', { name })}>
               Ensure evergreen running
             </button>
 
-            <button
-              disabled={loading}
-              onClick={() => callApi('/api/admin/campaign/evergreen-status', { name, status: 'stopped' })}
-            >
+            <button disabled={loading} onClick={() => callApi('/api/admin/campaign/evergreen-status', { name, status: 'stopped' })}>
               Stop evergreen
             </button>
 
-            <button
-              disabled={loading}
-              onClick={() => callApi('/api/admin/campaign/evergreen-status', { name, status: 'running' })}
-            >
+            <button disabled={loading} onClick={() => callApi('/api/admin/campaign/evergreen-status', { name, status: 'running' })}>
               Start evergreen
             </button>
           </div>
@@ -88,13 +107,15 @@ export default function CampaignConfigPanel() {
 
         <aside style={{ border: '1px solid #eee', borderRadius: 8, padding: 10, fontSize: 12 }}>
           <b>Statusy kampanii</b>
+          <div style={{ marginTop: 8, marginBottom: 8 }}>
+            <span style={{ display: 'inline-block', borderRadius: 999, padding: '3px 10px', fontSize: 12, ...badgeStyle }}>
+              current: {currentStatus}
+            </span>
+          </div>
           <ul style={{ margin: '8px 0 0 16px', padding: 0, lineHeight: 1.7 }}>
-            <li>draft</li>
-            <li>ready</li>
-            <li>running</li>
-            <li>paused</li>
-            <li>stopped</li>
-            <li>archived</li>
+            {STATUSES.map((s) => (
+              <li key={s} style={s === currentStatus ? { fontWeight: 700, color: '#0a7d22' } : undefined}>{s}</li>
+            ))}
           </ul>
         </aside>
       </div>
