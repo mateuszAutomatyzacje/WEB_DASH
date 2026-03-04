@@ -5,7 +5,7 @@ const ALLOWED = new Set(['running', 'stopped', 'paused']);
 export async function POST(req) {
   try {
     const body = await req.json().catch(() => ({}));
-    const name = (body?.name || 'AI_KANCELARIE_EVERGREEN').trim();
+    const name = (body?.name || 'OUTSOURCING_AI_EVERGREEM').trim();
     const status = (body?.status || '').trim();
 
     if (!ALLOWED.has(status)) throw new Error('invalid status');

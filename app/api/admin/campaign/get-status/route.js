@@ -3,7 +3,7 @@ import { getSql } from '@/lib/db.js';
 export async function GET(req) {
   try {
     const url = new URL(req.url);
-    const name = (url.searchParams.get('name') || 'AI_KANCELARIE_EVERGREEN').trim();
+    const name = (url.searchParams.get('name') || 'OUTSOURCING_AI_EVERGREEM').trim();
 
     const sql = getSql();
     const rows = await sql`

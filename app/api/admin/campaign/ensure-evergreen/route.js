@@ -3,7 +3,7 @@ import { getSql } from '@/lib/db.js';
 export async function POST(req) {
   try {
     const body = await req.json().catch(() => ({}));
-    const name = (body?.name || 'AI_KANCELARIE_EVERGREEN').trim();
+    const name = (body?.name || 'OUTSOURCING_AI_EVERGREEM').trim();
     const description = 'Kampania ciągła dla nowych leadów';
     const settings = {
       mode: 'evergreen',

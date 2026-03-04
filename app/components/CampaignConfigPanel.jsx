@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 const STATUSES = ['draft', 'ready', 'running', 'paused', 'stopped', 'archived'];
 
 export default function CampaignConfigPanel() {
-  const [name, setName] = useState('AI_KANCELARIE_EVERGREEN');
+  const [name, setName] = useState('OUTSOURCING_AI_EVERGREEM');
   const [description, setDescription] = useState('Kampania ciągła dla nowych leadów');
   const [settingsText, setSettingsText] = useState('{"mode":"evergreen","send_interval_min":5}');
   const [msg, setMsg] = useState('');
