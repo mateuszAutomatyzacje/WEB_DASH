@@ -5,6 +5,29 @@ import { useState } from 'react';
 const td = { borderBottom: '1px solid #f0f0f0', padding: '8px 6px', verticalAlign: 'top' };
 const th = { textAlign: 'left', borderBottom: '1px solid #ddd', padding: '8px 6px' };
 
+function getMonitorStatus(r) {
+  const event = (r.latest_event_type || '').toLowerCase();
+  const stopReason = (r.stop_reason || '').toLowerCase();
+  const n = Number(r.contact_attempt_no || 1);
+
+  if (event === 'replied' || stopReason === 'replied') {
+    return { label: 'GREEN: reply', color: '#0a7d22', bg: '#e8f7ec' };
+  }
+  if (['bounced', 'complained', 'unsubscribed', 'failed'].includes(event)) {
+    return { label: `RED: ${event}`, color: '#b00020', bg: '#fdecef' };
+  }
+  if (n >= 4) {
+    return { label: 'RED: brak odpowiedzi po FU2', color: '#b00020', bg: '#fdecef' };
+  }
+  if (n === 1) {
+    return { label: 'YELLOW: po main, czeka na FU1', color: '#8a6d00', bg: '#fff6db' };
+  }
+  if (n === 2) {
+    return { label: 'YELLOW: po FU1, czeka na FU2', color: '#8a6d00', bg: '#fff6db' };
+  }
+  return { label: 'YELLOW: po FU2, oczekiwanie', color: '#8a6d00', bg: '#fff6db' };
+}
+
 export default function CampaignGuardTable({ rows = [] }) {
   const [loadingId, setLoadingId] = useState(null);
   const [msg, setMsg] = useState('');
@@ -42,12 +65,14 @@ export default function CampaignGuardTable({ rows = [] }) {
             <th style={th}>attempt</th>
             <th style={th}>next_run_at</th>
             <th style={th}>latest_event</th>
+            <th style={th}>monitoring</th>
             <th style={th}>actions</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((r) => {
             const contact = [r.first_name, r.last_name].filter(Boolean).join(' ') || '-';
+            const monitor = getMonitorStatus(r);
             const actions = [
               ['stop', 'Stop'],
               ['resume', 'Resume'],
@@ -65,6 +90,11 @@ export default function CampaignGuardTable({ rows = [] }) {
                 <td style={td}>{r.next_run_at ? String(r.next_run_at) : '-'}</td>
                 <td style={td}>{r.latest_event_type || '-'}</td>
                 <td style={td}>
+                  <span style={{ display: 'inline-block', padding: '3px 8px', borderRadius: 999, background: monitor.bg, color: monitor.color, fontSize: 12 }}>
+                    {monitor.label}
+                  </span>
+                </td>
+                <td style={td}>
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     {actions.map(([key, label]) => (
                       <button
@@ -81,7 +111,7 @@ export default function CampaignGuardTable({ rows = [] }) {
               </tr>
             );
           })}
-          {rows.length === 0 && <tr><td style={td} colSpan={8}>No leads in campaign</td></tr>}
+          {rows.length === 0 && <tr><td style={td} colSpan={9}>No leads in campaign</td></tr>}
         </tbody>
       </table>
     </div>

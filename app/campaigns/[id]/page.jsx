@@ -35,6 +35,7 @@ export default async function CampaignDetailPage({ params }) {
         ma.lead_id,
         ma.lead_contact_id
       from message_attempts ma
+      where ma.campaign_id = ${id}
       order by ma.lead_id, ma.lead_contact_id, ma.created_at desc
     ),
     latest_event as (
@@ -83,6 +84,50 @@ export default async function CampaignDetailPage({ params }) {
     order by count desc
   `;
 
+  const [attemptStats] = await sql`
+    select
+      count(*)::int as attempts_total,
+      count(*) filter (where direction = 'outbound')::int as outbound_total,
+      count(*) filter (where sent_at is not null)::int as main_sent_total,
+      count(*) filter (where follow_up_1_sent_at is not null)::int as follow_up_1_sent_total,
+      count(*) filter (where follow_up_2_sent_at is not null)::int as follow_up_2_sent_total
+    from public.message_attempts
+    where campaign_id = ${id}
+  `;
+
+  const [monitorStats] = await sql`
+    with latest_event as (
+      select distinct on (ma.lead_id, ma.lead_contact_id)
+        ma.lead_id,
+        ma.lead_contact_id,
+        me.event_type::text as event_type
+      from public.message_attempts ma
+      join public.message_events me on me.message_attempt_id = ma.id
+      where ma.campaign_id = ${id}
+      order by ma.lead_id, ma.lead_contact_id, me.created_at desc
+    ), monitor as (
+      select
+        cl.id,
+        case
+          when cl.stop_reason::text = 'replied' or le.event_type = 'replied' then 'green'
+          when coalesce(le.event_type, '') in ('bounced','complained','unsubscribed','failed') then 'red'
+          when cl.contact_attempt_no >= 4 then 'red'
+          else 'yellow'
+        end as monitor_status
+      from public.campaign_leads cl
+      left join latest_event le
+        on le.lead_id = cl.lead_id
+       and le.lead_contact_id = cl.active_contact_id
+      where cl.campaign_id = ${id}
+    )
+    select
+      count(*)::int as total,
+      count(*) filter (where monitor_status = 'green')::int as green,
+      count(*) filter (where monitor_status = 'yellow')::int as yellow,
+      count(*) filter (where monitor_status = 'red')::int as red
+    from monitor
+  `;
+
   return (
     <main style={{ padding: 24 }}>
       <h1>Campaign: {campaign.name}</h1>
@@ -125,6 +170,19 @@ export default async function CampaignDetailPage({ params }) {
           <tr><td style={td}>description</td><td style={td}>{campaign.description || '-'}</td></tr>
           <tr><td style={td}>settings</td><td style={td}><pre style={{ margin: 0 }}>{JSON.stringify(campaign.settings || {}, null, 2)}</pre></td></tr>
           <tr><td style={td}>updated_at</td><td style={td}>{String(campaign.updated_at)}</td></tr>
+        </tbody>
+      </table>
+
+      <h2>Evergreen monitoring</h2>
+      <table style={{ borderCollapse: 'collapse', width: '100%', marginBottom: 18 }}>
+        <tbody>
+          <tr><td style={td}>Message attempts total</td><td style={td}>{attemptStats?.attempts_total ?? 0}</td></tr>
+          <tr><td style={td}>Main sent</td><td style={td}>{attemptStats?.main_sent_total ?? 0}</td></tr>
+          <tr><td style={td}>Follow-up 1 sent</td><td style={td}>{attemptStats?.follow_up_1_sent_total ?? 0}</td></tr>
+          <tr><td style={td}>Follow-up 2 sent</td><td style={td}>{attemptStats?.follow_up_2_sent_total ?? 0}</td></tr>
+          <tr><td style={td}>GREEN (reply detected)</td><td style={td}><b style={{ color: '#0a7d22' }}>{monitorStats?.green ?? 0}</b></td></tr>
+          <tr><td style={td}>YELLOW (in sequence / waiting)</td><td style={td}><b style={{ color: '#8a6d00' }}>{monitorStats?.yellow ?? 0}</b></td></tr>
+          <tr><td style={td}>RED (no reply after FU2 / failure)</td><td style={td}><b style={{ color: '#b00020' }}>{monitorStats?.red ?? 0}</b></td></tr>
         </tbody>
       </table>
 
