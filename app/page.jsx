@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import GuardPollerTest from '@/app/components/GuardPollerTest.jsx';
+// GuardPollerTest removed from overview
 import { getSql } from '@/lib/db.js';
 
 export const dynamic = 'force-dynamic';
@@ -53,8 +53,6 @@ export default async function Page() {
         <h1>LeadGuard Dashboard</h1>
         <Nav />
 
-        <GuardPollerTest />
-
         <h2>KPIs (live z bazy)</h2>
         <p style={{ fontSize: 12, color: '#555', marginBottom: 14 }}>
           Dane liczone live z aktualnej bazy. Odśwież stronę, żeby pobrać najnowsze wartości.
@@ -83,7 +81,6 @@ export default async function Page() {
       <main style={{ padding: 24 }}>
         <h1>LeadGuard Dashboard</h1>
         <Nav />
-        <GuardPollerTest />
         <p>Brak tabel / brak danych jeszcze. Najpierw wgraj schema do Postgresa.</p>
         <pre style={{ whiteSpace: 'pre-wrap', background: '#111', color: '#eee', padding: 12, borderRadius: 8 }}>
           {String(e?.message || e)}
