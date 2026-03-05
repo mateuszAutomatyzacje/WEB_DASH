@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import AdminButton from '@/app/components/AdminButton.jsx';
+import CampaignGuardTable from '@/app/components/CampaignGuardTable.jsx';
 import { getSql } from '@/lib/db.js';
 
 export const dynamic = 'force-dynamic';
@@ -28,8 +29,24 @@ export default async function CampaignDetailPage({ params }) {
   }
 
   const leads = await sql`
+    with latest_attempt as (
+      select distinct on (ma.lead_id, ma.lead_contact_id)
+        ma.id,
+        ma.lead_id,
+        ma.lead_contact_id
+      from message_attempts ma
+      order by ma.lead_id, ma.lead_contact_id, ma.created_at desc
+    ),
+    latest_event as (
+      select distinct on (me.message_attempt_id)
+        me.message_attempt_id,
+        me.event_type::text as latest_event_type,
+        me.created_at as latest_event_at
+      from message_events me
+      order by me.message_attempt_id, me.created_at desc
+    )
     select
-      cl.id,
+      cl.id as campaign_lead_id,
       cl.state::text as state,
       cl.contact_attempt_no,
       cl.next_run_at,
@@ -41,10 +58,17 @@ export default async function CampaignDetailPage({ params }) {
       lc.email,
       lc.first_name,
       lc.last_name,
-      lc.title
+      lc.title,
+      le.latest_event_type,
+      le.latest_event_at
     from campaign_leads cl
     join leads l on l.id = cl.lead_id
     left join lead_contacts lc on lc.id = cl.active_contact_id
+    left join latest_attempt la
+      on la.lead_id = cl.lead_id
+     and la.lead_contact_id = cl.active_contact_id
+    left join latest_event le
+      on le.message_attempt_id = la.id
     where cl.campaign_id = ${id}
     order by cl.updated_at desc
     limit 300
@@ -114,33 +138,7 @@ export default async function CampaignDetailPage({ params }) {
       </table>
 
       <h2>Campaign leads</h2>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr>
-            <th style={th}>company</th>
-            <th style={th}>contact</th>
-            <th style={th}>email</th>
-            <th style={th}>state</th>
-            <th style={th}>attempt_no</th>
-            <th style={th}>next_run_at</th>
-            <th style={th}>stop_reason</th>
-          </tr>
-        </thead>
-        <tbody>
-          {leads.map((r) => (
-            <tr key={r.id}>
-              <td style={td}>{r.company_name || r.lead_id}</td>
-              <td style={td}>{[r.first_name, r.last_name].filter(Boolean).join(' ') || r.title || r.lead_contact_id || '-'}</td>
-              <td style={td}>{r.email || '-'}</td>
-              <td style={td}>{r.state}</td>
-              <td style={td}>{r.contact_attempt_no ?? '-'}</td>
-              <td style={td}>{r.next_run_at ? String(r.next_run_at) : '-'}</td>
-              <td style={td}>{r.stop_reason || '-'}</td>
-            </tr>
-          ))}
-          {leads.length === 0 && <tr><td style={td} colSpan={7}>No leads in campaign</td></tr>}
-        </tbody>
-      </table>
+      <CampaignGuardTable rows={leads} />
     </main>
   );
 }
