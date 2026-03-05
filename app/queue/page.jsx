@@ -8,25 +8,28 @@ const th = { textAlign: 'left', borderBottom: '1px solid #ddd', padding: '8px 6p
 
 export default async function QueuePage() {
   const sql = getSql();
+
   const rows = await sql`
     select
       cl.id,
-      cl.state::text as state,
-      cl.current_step_no,
       cl.next_run_at,
+      cl.state::text as state,
+      cl.contact_attempt_no,
       cl.stop_reason::text as stop_reason,
       c.name as campaign_name,
       c.id as campaign_id,
-      l.person_full_name,
       l.company_name,
-      l.email
-    from campaign_leads cl
-    join campaigns c on c.id = cl.campaign_id
-    join leads l on l.id = cl.lead_id
+      lc.email,
+      lc.first_name,
+      lc.last_name
+    from public.campaign_leads cl
+    join public.campaigns c on c.id = cl.campaign_id
+    join public.leads l on l.id = cl.lead_id
+    left join public.lead_contacts lc on lc.id = cl.active_contact_id
     where cl.next_run_at is not null
-      and cl.state in ('queued','in_campaign')
+      and cl.state in ('in_campaign','new','enriched')
     order by cl.next_run_at asc
-    limit 200
+    limit 300
   `;
 
   return (
@@ -39,10 +42,11 @@ export default async function QueuePage() {
           <tr>
             <th style={th}>next_run_at</th>
             <th style={th}>campaign</th>
-            <th style={th}>lead</th>
-            <th style={th}>email</th>
+            <th style={th}>company</th>
+            <th style={th}>contact/email</th>
             <th style={th}>state</th>
-            <th style={th}>step</th>
+            <th style={th}>attempt_no</th>
+            <th style={th}>stop_reason</th>
           </tr>
         </thead>
         <tbody>
@@ -50,13 +54,14 @@ export default async function QueuePage() {
             <tr key={r.id}>
               <td style={td}>{String(r.next_run_at)}</td>
               <td style={td}><Link href={`/campaigns/${r.campaign_id}`}>{r.campaign_name}</Link></td>
-              <td style={td}>{r.person_full_name || r.company_name || '-'}</td>
-              <td style={td}>{r.email || '-'}</td>
+              <td style={td}>{r.company_name || '-'}</td>
+              <td style={td}>{[r.first_name, r.last_name].filter(Boolean).join(' ') || r.email || '-'}</td>
               <td style={td}>{r.state}</td>
-              <td style={td}>{r.current_step_no ?? '-'}</td>
+              <td style={td}>{r.contact_attempt_no ?? '-'}</td>
+              <td style={td}>{r.stop_reason || '-'}</td>
             </tr>
           ))}
-          {rows.length === 0 && <tr><td style={td} colSpan={6}>Queue empty</td></tr>}
+          {rows.length === 0 && <tr><td style={td} colSpan={7}>Queue empty</td></tr>}
         </tbody>
       </table>
     </main>
