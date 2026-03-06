@@ -3,14 +3,26 @@ import { getSql } from '@/lib/db.js';
 const DEFAULT_CAMPAIGN_NAME = 'OUTSOURCING_IT_EVERGREEM';
 
 async function ensureCampaign(sql, campaignId, campaignName) {
-  const rows = await sql`
-    select id, name
-    from public.campaigns
-    where (${campaignId}::uuid is not null and id = ${campaignId}::uuid)
-       or (${campaignName}::text is not null and name = ${campaignName}::text)
-    order by created_at desc
-    limit 1
-  `;
+  let rows = [];
+
+  if (campaignId) {
+    rows = await sql`
+      select id, name
+      from public.campaigns
+      where id = ${campaignId}::uuid
+      limit 1
+    `;
+  }
+
+  if (rows.length === 0) {
+    rows = await sql`
+      select id, name
+      from public.campaigns
+      where name = ${campaignName}
+      order by created_at desc
+      limit 1
+    `;
+  }
 
   if (rows.length > 0) return rows[0];
 
@@ -208,8 +220,8 @@ export async function POST(req) {
       });
     }
 
-    const smtpWebhookUrl = process.env.N8N_SMTP_SEND_WEBHOOK_URL || 'https://n8n-production-c340.up.railway.app/webhook-test/smtp-send';
-    const smtpToken = process.env.N8N_SMTP_SEND_TOKEN || null;
+    const smtpWebhookUrl = process.env.N8N_SMTP_SEND_WEBHOOK_URL || 'https://n8n-production-c340.up.railway.app/webhook/smtp-send';
+    const smtpToken = process.env.N8N_SMTP_SEND_TOKEN || 'SUPER_SECRET_TOKEN';
 
     if (!smtpWebhookUrl) {
       throw new Error('Missing N8N_SMTP_SEND_WEBHOOK_URL for live send');
