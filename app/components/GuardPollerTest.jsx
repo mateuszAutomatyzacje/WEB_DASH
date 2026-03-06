@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-const INTERVAL_MS = 5 * 60 * 1000;
+const INTERVAL_MS = 10 * 60 * 1000;
 
 export default function GuardPollerTest() {
   const [active, setActive] = useState(false);
@@ -87,7 +87,7 @@ export default function GuardPollerTest() {
         <span style={badgeStyle}>{active ? 'ACTIVE' : 'OFF'}</span>
       </div>
       <p style={{ margin: '8px 0', fontSize: 13 }}>
-        Po włączeniu wysyła request do webhooka co 5 minut (i raz od razu).
+        Po włączeniu wysyła request do webhooka co 10 minut (i raz od razu).
       </p>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <button onClick={() => setActive((v) => !v)} disabled={loading}>
