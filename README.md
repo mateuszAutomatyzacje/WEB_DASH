@@ -67,3 +67,6 @@ For live send (`dry_run:false`) set envs:
 - `N8N_SMTP_SEND_WEBHOOK_URL=https://.../webhook/<smtp-send-path>`
 - `N8N_SMTP_SEND_TOKEN=...` (optional)
 
+## Deployment note
+- Last report refresh commit timestamp (UTC): 2026-03-06 09:01:45 UTC
+
