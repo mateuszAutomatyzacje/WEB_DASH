@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { getSql } from '@/lib/db.js';
+import EvergreenControlPanel from '@/app/components/EvergreenControlPanel.jsx';
 
 export const dynamic = 'force-dynamic';
 
@@ -124,6 +125,8 @@ export default async function EvergreenSyncPage() {
         <div><b>Status:</b> {campaign.status}</div>
         <div><b>Updated:</b> {String(campaign.updated_at)}</div>
       </div>
+
+      <EvergreenControlPanel />
 
       <h2>Sync KPIs</h2>
       <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 22 }}>

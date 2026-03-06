@@ -58,3 +58,12 @@ Optional manual sync-only endpoint:
 - `POST /api/admin/campaign/sync-leads`
 - body: `{ "campaign_id": null, "campaign_name": "OUTSOURCING_IT_EVERGREEM" }`
 
+New WebDash-first send flow endpoints:
+- `GET /api/admin/campaign-guard/outbox?campaign_name=OUTSOURCING_IT_EVERGREEM&limit=50` → ready messages from DB sequence (email/FU1/FU2)
+- `POST /api/admin/campaign-guard/run` with `{ "campaign_name":"OUTSOURCING_IT_EVERGREEM", "limit":25, "dry_run":true }` → preview queue
+- `POST /api/admin/campaign-guard/run` with `dry_run:false` → live send via SMTP webhook and DB status updates
+
+For live send (`dry_run:false`) set envs:
+- `N8N_SMTP_SEND_WEBHOOK_URL=https://.../webhook/<smtp-send-path>`
+- `N8N_SMTP_SEND_TOKEN=...` (optional)
+
