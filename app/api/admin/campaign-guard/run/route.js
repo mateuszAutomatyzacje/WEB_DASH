@@ -208,7 +208,7 @@ export async function POST(req) {
       });
     }
 
-    const smtpWebhookUrl = process.env.N8N_SMTP_SEND_WEBHOOK_URL || null;
+    const smtpWebhookUrl = process.env.N8N_SMTP_SEND_WEBHOOK_URL || 'https://n8n-production-c340.up.railway.app/webhook-test/smtp-send';
     const smtpToken = process.env.N8N_SMTP_SEND_TOKEN || null;
 
     if (!smtpWebhookUrl) {

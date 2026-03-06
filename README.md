@@ -67,8 +67,9 @@ For live send (`dry_run:false`) preferred envs:
 - `N8N_SMTP_SEND_WEBHOOK_URL=https://.../webhook/<smtp-send-path>`
 - `N8N_SMTP_SEND_TOKEN=...` (optional)
 
-Requirement for live send:
-- `N8N_SMTP_SEND_WEBHOOK_URL` is required. Without it, LIVE send returns an explicit error.
+Live send webhook:
+- preferred env: `N8N_SMTP_SEND_WEBHOOK_URL`
+- current default fallback in code: `https://n8n-production-c340.up.railway.app/webhook-test/smtp-send`
 
 ## Deployment note
 - Last report refresh commit timestamp (UTC): 2026-03-06 09:01:45 UTC
