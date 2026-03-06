@@ -186,6 +186,16 @@ export async function POST(req) {
     const sync = await syncCampaignLeads(sql, campaign.id);
     const outbox = await loadOutbox(sql, campaign.id, limit);
 
+    const outboxPreview = outbox.map((r) => ({
+      campaign_lead_id: r.campaign_lead_id,
+      message_attempt_id: r.message_attempt_id,
+      to_email: r.to_email,
+      send_subject: r.send_subject,
+      lead_id: r.lead_id,
+      lead_contact_id: r.lead_contact_id,
+      contact_attempt_no: r.contact_attempt_no,
+    }));
+
     if (dryRun) {
       return Response.json({
         ok: true,
@@ -194,6 +204,7 @@ export async function POST(req) {
         sync,
         queued: outbox.length,
         rows: outbox,
+        outbox_preview: outboxPreview,
       });
     }
 
@@ -231,6 +242,7 @@ export async function POST(req) {
         campaign,
         sync,
         queued: outbox.length,
+        outbox_preview: outboxPreview,
         forwarded_to: legacyWebhookUrl,
         response: json,
       });
@@ -279,6 +291,7 @@ export async function POST(req) {
       campaign,
       sync,
       queued: outbox.length,
+      outbox_preview: outboxPreview,
       sent,
       failed,
       failures,

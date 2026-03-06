@@ -69,9 +69,37 @@ export default function EvergreenControlPanel() {
       </div>
       {msg ? <div style={{ marginTop: 8, fontSize: 13 }}>{msg}</div> : null}
       {result ? (
-        <pre style={{ marginTop: 10, background: '#111', color: '#eee', padding: 10, borderRadius: 8, overflowX: 'auto', fontSize: 12 }}>
-          {JSON.stringify(result, null, 2)}
-        </pre>
+        <>
+          {Array.isArray(result?.outbox_preview) && result.outbox_preview.length > 0 ? (
+            <div style={{ marginTop: 10 }}>
+              <div style={{ fontSize: 13, marginBottom: 6 }}><b>Kolejka do wysyłki (to_email + subject)</b></div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left', borderBottom: '1px solid #ddd', padding: '6px 4px' }}>to_email</th>
+                    <th style={{ textAlign: 'left', borderBottom: '1px solid #ddd', padding: '6px 4px' }}>subject</th>
+                    <th style={{ textAlign: 'left', borderBottom: '1px solid #ddd', padding: '6px 4px' }}>attempt</th>
+                    <th style={{ textAlign: 'left', borderBottom: '1px solid #ddd', padding: '6px 4px' }}>campaign_lead_id</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.outbox_preview.map((r) => (
+                    <tr key={`${r.campaign_lead_id}-${r.message_attempt_id}`}>
+                      <td style={{ borderBottom: '1px solid #f0f0f0', padding: '6px 4px' }}>{r.to_email}</td>
+                      <td style={{ borderBottom: '1px solid #f0f0f0', padding: '6px 4px' }}>{r.send_subject}</td>
+                      <td style={{ borderBottom: '1px solid #f0f0f0', padding: '6px 4px' }}>{r.contact_attempt_no}</td>
+                      <td style={{ borderBottom: '1px solid #f0f0f0', padding: '6px 4px' }}>{r.campaign_lead_id}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+
+          <pre style={{ marginTop: 10, background: '#111', color: '#eee', padding: 10, borderRadius: 8, overflowX: 'auto', fontSize: 12 }}>
+            {JSON.stringify(result, null, 2)}
+          </pre>
+        </>
       ) : null}
     </section>
   );
