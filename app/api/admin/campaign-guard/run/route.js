@@ -142,7 +142,7 @@ async function markSent(sql, item, providerMessageId = null) {
         'source','webdash_run',
         'to', ${item.to_email},
         'attempt_no', ${item.contact_attempt_no},
-        'provider_message_id', ${providerMessageId}
+        'provider_message_id', ${providerMessageId || null}::text
       ),
       now()
     )
