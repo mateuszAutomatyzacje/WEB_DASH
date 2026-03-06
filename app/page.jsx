@@ -15,6 +15,7 @@ function Nav() {
       <Link href="/queue">Queue</Link>
       <Link href="/workers">Workers</Link>
       <Link href="/warm-leads">Warm leads</Link>
+      <Link href="/evergreen-sync">Evergreen sync</Link>
       <a href="/api/health">/api/health</a>
     </nav>
   );
