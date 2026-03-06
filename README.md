@@ -63,9 +63,12 @@ New WebDash-first send flow endpoints:
 - `POST /api/admin/campaign-guard/run` with `{ "campaign_name":"OUTSOURCING_IT_EVERGREEM", "limit":25, "dry_run":true }` → preview queue
 - `POST /api/admin/campaign-guard/run` with `dry_run:false` → live send via SMTP webhook and DB status updates
 
-For live send (`dry_run:false`) set envs:
+For live send (`dry_run:false`) preferred envs:
 - `N8N_SMTP_SEND_WEBHOOK_URL=https://.../webhook/<smtp-send-path>`
 - `N8N_SMTP_SEND_TOKEN=...` (optional)
+
+Fallback behavior:
+- if `N8N_SMTP_SEND_WEBHOOK_URL` is missing, WebDash automatically falls back to legacy guard webhook (`N8N_GUARD_WEBHOOK_URL`) so LIVE button still triggers sending.
 
 ## Deployment note
 - Last report refresh commit timestamp (UTC): 2026-03-06 09:01:45 UTC
