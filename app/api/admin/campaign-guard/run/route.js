@@ -133,17 +133,19 @@ async function loadOutbox(sql, campaignId, limit) {
 }
 
 async function markSent(sql, item, providerMessageId = null) {
+  const eventMeta = JSON.stringify({
+    source: 'webdash_run',
+    to: item.to_email,
+    attempt_no: item.contact_attempt_no,
+    provider_message_id: providerMessageId || null,
+  });
+
   await sql`
     insert into public.message_events (message_attempt_id, event_type, event_meta, created_at)
     values (
       ${item.message_attempt_id}::uuid,
       'sent'::public.message_event_type,
-      jsonb_build_object(
-        'source','webdash_run',
-        'to', ${item.to_email},
-        'attempt_no', ${item.contact_attempt_no},
-        'provider_message_id', ${providerMessageId || null}::text
-      ),
+      ${eventMeta}::jsonb,
       now()
     )
   `;
@@ -162,17 +164,19 @@ async function markSent(sql, item, providerMessageId = null) {
 }
 
 async function markFailed(sql, item, errMsg = 'send_failed') {
+  const eventMeta = JSON.stringify({
+    source: 'webdash_run',
+    to: item.to_email,
+    attempt_no: item.contact_attempt_no,
+    error: errMsg,
+  });
+
   await sql`
     insert into public.message_events (message_attempt_id, event_type, event_meta, created_at)
     values (
       ${item.message_attempt_id}::uuid,
       'failed'::public.message_event_type,
-      jsonb_build_object(
-        'source','webdash_run',
-        'to', ${item.to_email},
-        'attempt_no', ${item.contact_attempt_no},
-        'error', ${errMsg}
-      ),
+      ${eventMeta}::jsonb,
       now()
     )
   `;
