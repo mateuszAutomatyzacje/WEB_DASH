@@ -67,8 +67,8 @@ For live send (`dry_run:false`) preferred envs:
 - `N8N_SMTP_SEND_WEBHOOK_URL=https://.../webhook/<smtp-send-path>`
 - `N8N_SMTP_SEND_TOKEN=...` (optional)
 
-Fallback behavior:
-- if `N8N_SMTP_SEND_WEBHOOK_URL` is missing, WebDash automatically falls back to legacy guard webhook (`N8N_GUARD_WEBHOOK_URL`) so LIVE button still triggers sending.
+Requirement for live send:
+- `N8N_SMTP_SEND_WEBHOOK_URL` is required. Without it, LIVE send returns an explicit error.
 
 ## Deployment note
 - Last report refresh commit timestamp (UTC): 2026-03-06 09:01:45 UTC

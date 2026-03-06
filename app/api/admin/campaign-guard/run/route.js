@@ -211,41 +211,8 @@ export async function POST(req) {
     const smtpWebhookUrl = process.env.N8N_SMTP_SEND_WEBHOOK_URL || null;
     const smtpToken = process.env.N8N_SMTP_SEND_TOKEN || null;
 
-    // Fallback: if dedicated SMTP webhook is not configured, trigger legacy n8n guard webhook.
     if (!smtpWebhookUrl) {
-      const legacyWebhookUrl = process.env.N8N_GUARD_WEBHOOK_URL || 'https://n8n-production-c340.up.railway.app/webhook/campaign-guard-poll';
-      const legacyToken = process.env.N8N_GUARD_TOKEN || 'SUPER_SECRET_TOKEN';
-
-      const legacyRes = await fetch(legacyWebhookUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token: legacyToken,
-          campaign_id: campaign.id,
-          limit,
-          dry_run: false,
-        }),
-        cache: 'no-store',
-      });
-
-      const text = await legacyRes.text();
-      let json = null;
-      try { json = JSON.parse(text); } catch { json = { raw: text }; }
-
-      if (!legacyRes.ok || json?.ok === false) {
-        throw new Error(json?.error || json?.message || `Legacy webhook HTTP ${legacyRes.status}`);
-      }
-
-      return Response.json({
-        ok: true,
-        mode: 'live_legacy_fallback',
-        campaign,
-        sync,
-        queued: outbox.length,
-        outbox_preview: outboxPreview,
-        forwarded_to: legacyWebhookUrl,
-        response: json,
-      });
+      throw new Error('Missing N8N_SMTP_SEND_WEBHOOK_URL for live send');
     }
 
     let sent = 0;

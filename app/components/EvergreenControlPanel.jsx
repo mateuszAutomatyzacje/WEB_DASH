@@ -46,11 +46,6 @@ export default function EvergreenControlPanel() {
         setResult(data);
         setMsg(`SEND OK: sent=${data?.sent ?? 0} failed=${data?.failed ?? 0}`);
       }
-      if (action === 'poll') {
-        const data = await callJson('/api/admin/campaign-guard/poll', { ...defaultBody, dry_run: false, limit: 100 });
-        setResult(data);
-        setMsg('POLL OK');
-      }
     } catch (e) {
       setMsg(`ERR: ${String(e?.message || e)}`);
     } finally {
@@ -65,7 +60,6 @@ export default function EvergreenControlPanel() {
         <button onClick={() => run('sync')} disabled={loading}>{loading ? '...' : 'Sync leadów -> campaign_leads'}</button>
         <button onClick={() => run('preview')} disabled={loading}>{loading ? '...' : 'Preview outbox (dry-run)'}</button>
         <button onClick={() => run('send')} disabled={loading}>{loading ? '...' : 'Send now (LIVE)'}</button>
-        <button onClick={() => run('poll')} disabled={loading}>{loading ? '...' : 'Run legacy poll (n8n)'}</button>
       </div>
       {msg ? <div style={{ marginTop: 8, fontSize: 13 }}>{msg}</div> : null}
       {result ? (
