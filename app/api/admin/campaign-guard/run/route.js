@@ -242,11 +242,12 @@ export async function POST(req) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             token: smtpToken,
-            to_email: item.to_email,
-            subject: item.send_subject,
-            body: item.send_body,
-            message_attempt_id: item.message_attempt_id,
+            campaign_id: campaign.id,
+            lead_id: item.lead_id,
+            lead_contact_id: item.lead_contact_id,
             campaign_lead_id: item.campaign_lead_id,
+            message_attempt_id: item.message_attempt_id,
+            contact_attempt_no: item.contact_attempt_no,
           }),
           cache: 'no-store',
         });
