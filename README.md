@@ -72,5 +72,5 @@ Live send webhook:
 - current default in code: `https://n8n-production-c340.up.railway.app/webhook/smtp-send` (production URL, not webhook-test)
 
 ## Deployment note
-- Last report refresh commit timestamp (UTC): 2026-03-06 09:52:31 UTC
+- Last report refresh commit timestamp (UTC): 2026-03-06 10:01:35 UTC
 
