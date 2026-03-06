@@ -3,14 +3,27 @@ import { getSql } from '@/lib/db.js';
 const DEFAULT_CAMPAIGN_NAME = 'OUTSOURCING_IT_EVERGREEM';
 
 async function resolveCampaign(sql, campaignId, campaignName) {
-  const rows = await sql`
-    select id, name, status::text as status
-    from public.campaigns
-    where (${campaignId}::uuid is not null and id = ${campaignId}::uuid)
-       or (${campaignName}::text is not null and name = ${campaignName}::text)
-    order by created_at desc
-    limit 1
-  `;
+  let rows = [];
+
+  if (campaignId) {
+    rows = await sql`
+      select id, name, status::text as status
+      from public.campaigns
+      where id = ${campaignId}::uuid
+      limit 1
+    `;
+  }
+
+  if (rows.length === 0) {
+    rows = await sql`
+      select id, name, status::text as status
+      from public.campaigns
+      where name = ${campaignName}
+      order by created_at desc
+      limit 1
+    `;
+  }
+
   return rows[0] || null;
 }
 

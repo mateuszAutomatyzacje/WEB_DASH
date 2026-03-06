@@ -1,5 +1,30 @@
 import { getSql } from '@/lib/db.js';
 
+async function resolveCampaign(sql, campaignId, campaignName) {
+  let rows = [];
+
+  if (campaignId) {
+    rows = await sql`
+      select id, name
+      from public.campaigns
+      where id = ${campaignId}::uuid
+      limit 1
+    `;
+  }
+
+  if (rows.length === 0 && campaignName) {
+    rows = await sql`
+      select id, name
+      from public.campaigns
+      where name = ${campaignName}
+      order by created_at desc
+      limit 1
+    `;
+  }
+
+  return rows[0] || null;
+}
+
 export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
@@ -14,17 +39,11 @@ export async function GET(req) {
     }
 
     const sql = getSql();
+    const campaign = await resolveCampaign(sql, campaignId, campaignName);
+    if (!campaign) throw new Error('Campaign not found');
 
     const rows = await sql`
-      with c as (
-        select id, name
-        from public.campaigns
-        where (${campaignId}::uuid is not null and id = ${campaignId}::uuid)
-           or (${campaignName}::text is not null and name = ${campaignName}::text)
-        order by created_at desc
-        limit 1
-      ),
-      latest_attempt as (
+      with latest_attempt as (
         select distinct on (ma.lead_id, ma.lead_contact_id)
           ma.id,
           ma.lead_id,
@@ -46,7 +65,7 @@ export async function GET(req) {
       select
         cl.id as campaign_lead_id,
         cl.campaign_id,
-        c.name as campaign_name,
+        ${campaign.name}::text as campaign_name,
         cl.state::text as state,
         cl.contact_attempt_no,
         cl.next_run_at,
@@ -64,7 +83,6 @@ export async function GET(req) {
         le.created_at as latest_event_at,
         cl.updated_at
       from public.campaign_leads cl
-      join c on c.id = cl.campaign_id
       join public.leads l on l.id = cl.lead_id
       left join public.lead_contacts lc on lc.id = cl.active_contact_id
       left join latest_attempt la
@@ -72,7 +90,8 @@ export async function GET(req) {
        and la.lead_contact_id = cl.active_contact_id
       left join latest_event le
         on le.message_attempt_id = la.id
-      where (${state}::text is null or cl.state::text = ${state}::text)
+      where cl.campaign_id = ${campaign.id}::uuid
+        and (${state}::text is null or cl.state::text = ${state}::text)
       order by cl.updated_at desc
       limit ${limit}
     `;
