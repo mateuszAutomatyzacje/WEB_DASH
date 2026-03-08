@@ -84,6 +84,16 @@ Live send webhook:
 - preferred env: `N8N_SMTP_SEND_WEBHOOK_URL`
 - current default in code: `https://n8n-production-c340.up.railway.app/webhook/smtp-send` (production URL, not webhook-test)
 
+## SMTP rotation (daily cap) schema
+Added SQL: `schema/postgres-schema-campaign-guard-smtp-rotation.sql`
+
+Creates:
+- `smtp_accounts` (mailboxes + daily_limit, status, priority)
+- `smtp_account_usage` (per account / per UTC day counters)
+- `message_sends` (immutable audit of each send outcome)
+
+This is the DB foundation for account rotation (e.g. 25/day per mailbox).
+
 ## Deployment note
 - Last report refresh commit timestamp (UTC): 2026-03-06 10:01:35 UTC
 

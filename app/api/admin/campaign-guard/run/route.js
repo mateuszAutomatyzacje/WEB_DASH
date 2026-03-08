@@ -91,6 +91,11 @@ async function loadOutbox(sql, campaignId, limit) {
         ma.*
       from public.message_attempts ma
       order by ma.lead_id, ma.lead_contact_id, ma.created_at desc
+    ), replied as (
+      select distinct ma.lead_id, ma.lead_contact_id
+      from public.message_attempts ma
+      join public.message_events me on me.message_attempt_id = ma.id
+      where me.event_type = 'replied'
     )
     select
       cl.id as campaign_lead_id,
@@ -102,8 +107,20 @@ async function loadOutbox(sql, campaignId, limit) {
       cl.next_run_at,
       lc.email as to_email,
       la.id as message_attempt_id,
-      la.subject as send_subject,
-      la.email as send_body,
+      case
+        when cl.contact_attempt_no = 1 then la.subject
+        when cl.contact_attempt_no = 2 then coalesce(la.follow_up_1_subject, la.subject)
+        when cl.contact_attempt_no = 3 then coalesce(la.follow_up_2_subject, la.subject)
+        else la.subject
+      end as send_subject,
+      case
+        when cl.contact_attempt_no = 1 then la.email
+        when cl.contact_attempt_no = 2 then coalesce(la.follow_up_1_text, la.email)
+        when cl.contact_attempt_no = 3 then coalesce(la.follow_up_2_text, la.email)
+        else la.email
+      end as send_body,
+      la.subject as main_subject,
+      la.email as main_body,
       la.follow_up_1_subject,
       la.follow_up_1_text,
       la.follow_up_2_subject,
@@ -111,10 +128,17 @@ async function loadOutbox(sql, campaignId, limit) {
     from public.campaign_leads cl
     join public.lead_contacts lc on lc.id = cl.active_contact_id
     join latest_attempt la on la.lead_id = cl.lead_id and la.lead_contact_id = cl.active_contact_id
+    left join replied r
+      on r.lead_id = cl.lead_id
+     and r.lead_contact_id = cl.active_contact_id
     where cl.campaign_id = ${campaignId}::uuid
+      and cl.state = 'in_campaign'
+      and (cl.next_run_at is null or cl.next_run_at <= now())
+      and cl.contact_attempt_no between 1 and 3
       and lc.email is not null
       and la.email is not null
-    order by cl.updated_at desc
+      and r.lead_id is null
+    order by cl.next_run_at nulls first, cl.updated_at asc
     limit ${limit}
   `;
 }
@@ -194,6 +218,7 @@ export async function POST(req) {
       message_attempt_id: r.message_attempt_id,
       to_email: r.to_email,
       send_subject: r.send_subject,
+      send_body_preview: typeof r.send_body === 'string' ? r.send_body.slice(0, 120) : null,
       lead_id: r.lead_id,
       lead_contact_id: r.lead_contact_id,
       contact_attempt_no: r.contact_attempt_no,
@@ -235,13 +260,10 @@ export async function POST(req) {
             campaign_lead_id: item.campaign_lead_id,
             message_attempt_id: item.message_attempt_id,
             contact_attempt_no: item.contact_attempt_no,
+            execution_mode: 'webdash_run',
             to_email: item.to_email,
             subject: item.send_subject,
             body: item.send_body,
-            follow_up_1_subject: item.follow_up_1_subject,
-            follow_up_1_text: item.follow_up_1_text,
-            follow_up_2_subject: item.follow_up_2_subject,
-            follow_up_2_text: item.follow_up_2_text,
             campaign_lead_state: item.campaign_lead_state,
             next_run_at: item.next_run_at,
           }),
@@ -256,10 +278,14 @@ export async function POST(req) {
           throw new Error(json?.error || json?.message || `SMTP webhook HTTP ${sendRes.status}`);
         }
 
+        const providerMessageId = json?.provider_message_id || json?.message_id || null;
+        await markSent(sql, item, providerMessageId);
         sent += 1;
       } catch (e) {
+        const errMsg = String(e?.message || e);
+        await markFailed(sql, item, errMsg);
         failed += 1;
-        failures.push({ campaign_lead_id: item.campaign_lead_id, error: String(e?.message || e) });
+        failures.push({ campaign_lead_id: item.campaign_lead_id, error: errMsg });
       }
     }
 
