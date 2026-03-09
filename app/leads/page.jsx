@@ -31,7 +31,11 @@ export default async function LeadsPage() {
   return (
     <main style={{ padding: 24 }}>
       <h1>Leads (firmy)</h1>
-      <p><Link href="/">← Overview</Link></p>
+      <p>
+        <Link href="/">← Overview</Link>
+        {' · '}
+        <Link href="/leads/scraper">Scraper settings</Link>
+      </p>
 
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
