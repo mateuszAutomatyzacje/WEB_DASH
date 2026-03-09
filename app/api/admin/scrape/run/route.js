@@ -29,8 +29,9 @@ export async function POST() {
     const cfg = rows?.[0];
     if (!cfg) throw new Error("Missing scrape_settings row id='global'");
 
-    const runnerWebhookUrl = process.env.JUSTJOIN_SCRAPER_WEBHOOK_URL;
-    if (!runnerWebhookUrl) throw new Error('Missing JUSTJOIN_SCRAPER_WEBHOOK_URL');
+    // WebDash default (can be overridden by env)
+    const runnerWebhookUrl = process.env.JUSTJOIN_SCRAPER_WEBHOOK_URL
+      || 'https://n8n-production-c340.up.railway.app/webhook/efxblr-test-trigger';
 
     const token = process.env.JUSTJOIN_SCRAPER_WEBHOOK_TOKEN || null;
 
