@@ -44,10 +44,27 @@ Then call from scheduler (every 10 minutes):
 }
 ```
 
+### Preferred scheduler-safe endpoint (sync only, no n8n forward)
+Use this for cron/scheduler if you want only lead auto-sync without triggering send flow:
+
+- **Method:** `POST`
+- **URL:** `https://<twoj-webdash-domain>/api/admin/campaign/cron-sync`
+- **Headers:**
+  - `Content-Type: application/json`
+  - `Authorization: Bearer <WEBDASH_SCHEDULER_TOKEN>`
+- **Body:**
+```json
+{
+  "campaign_id": null,
+  "campaign_name": "OUTSOURCING_IT_EVERGREEM",
+  "interval_min": 10
+}
+```
+
 ### Railway Cron / Scheduled Job recipe
 - trigger: every 10 min
 - method: POST
-- target: `https://<twoj-webdash-domain>/api/admin/campaign-guard/poll`
+- target: `https://<twoj-webdash-domain>/api/admin/campaign/cron-sync`
 - auth header: `Authorization: Bearer <WEBDASH_SCHEDULER_TOKEN>`
 - content-type: `application/json`
 - body: jak wyżej

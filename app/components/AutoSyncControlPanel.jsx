@@ -46,7 +46,7 @@ export default function AutoSyncControlPanel({ campaignName, initial }) {
         <div><b>Interval:</b> every {state.sync_interval_min || 10} min</div>
         <div><b>Last sync:</b> {state.last_sync_at || '-'}</div>
         <div><b>Last result:</b> {state.last_sync_result ? `inserted=${state.last_sync_result.inserted ?? 0}, updated=${state.last_sync_result.updated ?? 0}` : '-'}</div>
-        <div><b>Scheduler:</b> odpalaj cron na <code>POST /api/admin/campaign-guard/poll</code> co 10 min</div>
+        <div><b>Scheduler:</b> odpalaj cron na <code>POST /api/admin/campaign/cron-sync</code> co 10 min</div>
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button onClick={() => run('start')} disabled={loading} style={{ background: '#111827', color: '#f8fafc', border: '1px solid #374151', borderRadius: 8, padding: '8px 10px' }}>{loading ? '...' : 'Start Auto Sync'}</button>
