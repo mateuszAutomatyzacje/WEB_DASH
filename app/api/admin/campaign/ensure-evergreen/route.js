@@ -9,6 +9,9 @@ export async function POST(req) {
       mode: 'evergreen',
       send_interval_min: 5,
       auto_enqueue: true,
+      auto_sync_enabled: true,
+      sync_interval_min: 10,
+      auto_sync_status: 'running',
     };
 
     const sql = getSql();

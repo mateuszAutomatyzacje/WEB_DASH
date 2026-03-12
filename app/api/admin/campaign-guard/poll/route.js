@@ -136,6 +136,17 @@ export async function POST(req) {
       data = { raw: text };
     }
 
+    await sql`
+      update campaigns
+      set settings = coalesce(settings, '{}'::jsonb) || ${JSON.stringify({
+        auto_sync_status: res.ok ? 'running' : 'error',
+        last_sync_at: new Date().toISOString(),
+        last_sync_ok: res.ok,
+      })}::jsonb || jsonb_build_object('last_sync_result', ${JSON.stringify(syncResult)}::jsonb, 'last_poll_response_ok', ${res.ok}),
+          updated_at = now()
+      where id = ${resolvedCampaignId}::uuid
+    `;
+
     return Response.json(
       {
         ok: res.ok,

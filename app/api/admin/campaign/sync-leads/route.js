@@ -89,11 +89,24 @@ export async function POST(req) {
       from upserted
     `;
 
+    const result = rows[0] || { total: 0, inserted: 0, updated: 0 };
+
+    await sql`
+      update campaigns
+      set settings = coalesce(settings, '{}'::jsonb) || ${JSON.stringify({
+        auto_sync_status: 'running',
+        last_sync_at: new Date().toISOString(),
+        last_sync_ok: true,
+      })}::jsonb || jsonb_build_object('last_sync_result', ${JSON.stringify(result)}::jsonb),
+          updated_at = now()
+      where id = ${campaignId}::uuid
+    `;
+
     return Response.json({
       ok: true,
       campaign_id: campaignId,
       campaign_name: campaignName,
-      ...(rows[0] || { total: 0, inserted: 0, updated: 0 }),
+      ...result,
     });
   } catch (e) {
     return new Response(String(e?.message || e), { status: 400 });

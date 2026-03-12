@@ -1,6 +1,7 @@
 import { AppShell, Card, StatCard, Table, td, th } from '@/app/components/AppShell.jsx';
 import { getSql } from '@/lib/db.js';
 import EvergreenControlPanel from '@/app/components/EvergreenControlPanel.jsx';
+import AutoSyncControlPanel from '@/app/components/AutoSyncControlPanel.jsx';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,7 +11,7 @@ export default async function EvergreenSyncPage() {
   const sql = getSql();
 
   const campaignRows = await sql`
-    select id, name, status::text as status, created_at, updated_at
+    select id, name, status::text as status, description, settings, created_at, updated_at
     from public.campaigns
     where name = ${CAMPAIGN_NAME}
     order by created_at desc
@@ -26,6 +27,8 @@ export default async function EvergreenSyncPage() {
       </AppShell>
     );
   }
+
+  const settings = campaign.settings || {};
 
   const [kpi] = await sql`
     with src as (
@@ -108,16 +111,17 @@ export default async function EvergreenSyncPage() {
   `;
 
   return (
-    <AppShell title="Evergreen sync monitor" subtitle="Monitor synchronizacji evergreen: ile par lead+contact już weszło do campaign_leads, co jeszcze brakuje i co zostało zmienione ostatnio.">
+    <AppShell title="Evergreen sync monitor" subtitle="Monitor synchronizacji evergreen: kliknij Start Auto Sync, zobacz status running i miej pod ręką ręczne akcje oraz KPI syncu.">
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 20 }}>
-        <StatCard label="Source pairs" value={kpi?.source_pairs_total ?? 0} />
-        <StatCard label="Evergreen pairs" value={kpi?.evergreen_pairs_total ?? 0} tone="success" />
+        <StatCard label="Campaign status" value={campaign.status} tone={campaign.status === 'running' ? 'success' : 'warn'} />
+        <StatCard label="Auto sync" value={settings.auto_sync_enabled ? 'enabled' : 'disabled'} tone={settings.auto_sync_enabled ? 'success' : 'warn'} />
+        <StatCard label="Sync status" value={settings.auto_sync_status || 'unknown'} tone={settings.auto_sync_status === 'running' ? 'success' : settings.auto_sync_status === 'error' ? 'danger' : 'warn'} />
         <StatCard label="Missing to sync" value={kpi?.missing_in_campaign_leads ?? 0} tone={(kpi?.missing_in_campaign_leads ?? 0) > 0 ? 'danger' : 'default'} />
         <StatCard label="Inserted 24h" value={kpi?.inserted_last_24h ?? 0} />
         <StatCard label="Updated 24h" value={kpi?.updated_last_24h ?? 0} />
       </section>
 
-      <section style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+      <section style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 20 }}>
         <Card>
           <h2 style={{ marginTop: 0 }}>Campaign context</h2>
           <Table>
@@ -126,9 +130,21 @@ export default async function EvergreenSyncPage() {
               <tr><td style={td}>Campaign ID</td><td style={td}>{campaign.id}</td></tr>
               <tr><td style={td}>Status</td><td style={td}>{campaign.status}</td></tr>
               <tr><td style={td}>Updated</td><td style={td}>{String(campaign.updated_at)}</td></tr>
+              <tr><td style={td}>Last sync</td><td style={td}>{settings.last_sync_at || '-'}</td></tr>
             </tbody>
           </Table>
         </Card>
+
+        <AutoSyncControlPanel
+          campaignName={campaign.name}
+          initial={{
+            enabled: Boolean(settings.auto_sync_enabled),
+            status: settings.auto_sync_status || campaign.status || 'unknown',
+            sync_interval_min: Number(settings.sync_interval_min || 10),
+            last_sync_at: settings.last_sync_at || '',
+            last_sync_result: settings.last_sync_result || null,
+          }}
+        />
 
         <EvergreenControlPanel />
       </section>
