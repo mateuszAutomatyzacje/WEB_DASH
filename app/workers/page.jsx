@@ -1,10 +1,12 @@
 import { AppShell, Card, StatCard, Table, td, th } from '@/app/components/AppShell.jsx';
 import { getSql } from '@/lib/db.js';
+import { getAnalyticsSnapshot } from '@/lib/reporting.js';
 
 export const dynamic = 'force-dynamic';
 
 export default async function WorkersPage() {
   const sql = getSql();
+  const analytics = await getAnalyticsSnapshot(sql);
 
   const [summary] = await sql`
     select
@@ -42,7 +44,7 @@ export default async function WorkersPage() {
   `;
 
   return (
-    <AppShell title="Operations" subtitle="Jedno miejsce do sprawdzenia, co system robił ostatnio: eventy wiadomości, reply, błędy i świeże zdarzenia operacyjne.">
+    <AppShell title="Operations" subtitle="Eventy wiadomości, obciążenie skrzynek, daily limits i logi błędów w jednym miejscu.">
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 20 }}>
         <StatCard label="Total events" value={summary?.total_events ?? 0} />
         <StatCard label="Replies" value={summary?.replied ?? 0} tone="success" />
@@ -50,7 +52,42 @@ export default async function WorkersPage() {
         <StatCard label="Last 24h" value={summary?.last_24h ?? 0} helper="ile eventów wpadło w ostatniej dobie" />
       </section>
 
-      <section style={{ display: 'grid', gridTemplateColumns: '0.9fr 1.4fr', gap: 16 }}>
+      <section style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16, marginBottom: 20 }}>
+        <Card>
+          <h2 style={{ marginTop: 0 }}>SMTP accounts / daily limits / warm-up</h2>
+          <Table>
+            <thead>
+              <tr>
+                <th style={th}>account</th>
+                <th style={th}>status</th>
+                <th style={th}>daily_limit</th>
+                <th style={th}>sent_today</th>
+                <th style={th}>failed_today</th>
+                <th style={th}>remaining</th>
+                <th style={th}>load</th>
+                <th style={th}>last_used_at</th>
+              </tr>
+            </thead>
+            <tbody>
+              {analytics.smtpLoad.map((row) => (
+                <tr key={row.id}>
+                  <td style={td}>{row.account_key}<div style={{ fontSize: 12, color: '#94a3b8' }}>{row.from_email || '-'}</div></td>
+                  <td style={td}>{row.status}</td>
+                  <td style={td}>{row.daily_limit}</td>
+                  <td style={td}>{row.sent_today}</td>
+                  <td style={td}>{row.failed_today}</td>
+                  <td style={td}>{row.remaining_today}</td>
+                  <td style={{ ...td, color: Number(row.load_pct) >= 80 ? '#fca5a5' : '#cbd5e1' }}>{row.load_pct ?? 0}%</td>
+                  <td style={td}>{row.last_used_at ? String(row.last_used_at) : '-'}</td>
+                </tr>
+              ))}
+              {analytics.smtpLoad.length === 0 && <tr><td style={td} colSpan={8}>No SMTP accounts</td></tr>}
+            </tbody>
+          </Table>
+        </Card>
+      </section>
+
+      <section style={{ display: 'grid', gridTemplateColumns: '0.9fr 1.4fr', gap: 16, marginBottom: 20 }}>
         <Card>
           <h2 style={{ marginTop: 0 }}>Event summary</h2>
           <Table>
@@ -101,6 +138,35 @@ export default async function WorkersPage() {
           </Table>
         </Card>
       </section>
+
+      <Card>
+        <h2 style={{ marginTop: 0 }}>Error logs</h2>
+        <Table>
+          <thead>
+            <tr>
+              <th style={th}>created_at</th>
+              <th style={th}>campaign</th>
+              <th style={th}>account</th>
+              <th style={th}>to_email</th>
+              <th style={th}>subject</th>
+              <th style={th}>error</th>
+            </tr>
+          </thead>
+          <tbody>
+            {analytics.errorLogs.map((row, i) => (
+              <tr key={`${row.created_at}-${i}`}>
+                <td style={td}>{String(row.created_at)}</td>
+                <td style={td}>{row.campaign_name}</td>
+                <td style={td}>{row.account_key}</td>
+                <td style={td}>{row.to_email}</td>
+                <td style={td}>{row.subject}</td>
+                <td style={{ ...td, color: '#fca5a5' }}>{row.error}</td>
+              </tr>
+            ))}
+            {analytics.errorLogs.length === 0 && <tr><td style={td} colSpan={6}>No failed sends logged</td></tr>}
+          </tbody>
+        </Table>
+      </Card>
     </AppShell>
   );
 }

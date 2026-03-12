@@ -1,11 +1,14 @@
 import Link from 'next/link';
 import { AppShell, Card, StatCard, Table, td, th } from '@/app/components/AppShell.jsx';
+import LineChartCard from '@/app/components/LineChartCard.jsx';
 import { getSql } from '@/lib/db.js';
+import { getAnalyticsSnapshot } from '@/lib/reporting.js';
 
 export const dynamic = 'force-dynamic';
 
 async function getDashboardData() {
   const sql = getSql();
+  const analytics = await getAnalyticsSnapshot(sql);
 
   const [totals] = await sql`
     with latest_event_per_contact as (
@@ -133,25 +136,50 @@ async function getDashboardData() {
     limit 8
   `;
 
-  return { totals: totals || {}, campaigns, warmLeads, queue };
+  return { totals: totals || {}, campaigns, warmLeads, queue, analytics };
 }
 
 export default async function Page() {
   try {
-    const { totals, campaigns, warmLeads, queue } = await getDashboardData();
+    const { totals, campaigns, warmLeads, queue, analytics } = await getDashboardData();
 
     return (
       <AppShell
         title="Dashboard"
-        subtitle="Jeden wspólny panel operacyjno-kliencki: wyniki kampanii, warm leads i priorytety do ogarnięcia bez przeklikiwania się przez surowe tabele."
+        subtitle="Jeden wspólny panel operacyjno-kliencki: wyniki kampanii, warm leads, wydajność skrzynek i priorytety do ogarnięcia."
+        actions={<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><a href="/api/report/xls" style={{ color: '#93c5fd' }}>Export XLS</a><a href="/api/report/pdf" style={{ color: '#93c5fd' }}>Export PDF</a></div>}
       >
         <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 20 }}>
           <StatCard label="Leads total" value={totals.leads_total} helper={`+${totals.new_leads_last_7d ?? 0} w ostatnich 7 dniach`} />
           <StatCard label="Campaigns running" value={totals.campaigns_running} helper={`z ${totals.campaigns_total ?? 0} wszystkich`} tone="success" />
-          <StatCard label="Warm leads" value={totals.warm_leads_open_total} helper={`reply events total: ${totals.replies_total ?? 0}`} tone="success" />
+          <StatCard label="Open Rate" value={`${analytics.totals.open_rate}%`} helper={`opened: ${analytics.totals.opened}`} />
+          <StatCard label="CTR" value={`${analytics.totals.ctr}%`} helper={`clicked: ${analytics.totals.clicked}`} />
+          <StatCard label="Reply Rate" value={`${analytics.totals.reply_rate}%`} helper={`reply events: ${analytics.totals.replied}`} tone="success" />
+          <StatCard label="Bounce Rate" value={`${analytics.totals.bounce_rate}%`} helper={`bounced: ${analytics.totals.bounced}`} tone={analytics.totals.bounce_rate > 5 ? 'danger' : 'warn'} />
           <StatCard label="Queue overdue" value={totals.queue_overdue} helper="rekordy z next_run_at <= teraz" tone={Number(totals.queue_overdue) > 0 ? 'danger' : 'default'} />
-          <StatCard label="Negative events" value={totals.negative_events_total} helper="bounce / complaint / unsubscribe / failed" tone={Number(totals.negative_events_total) > 0 ? 'warn' : 'default'} />
-          <StatCard label="Progressed contacts" value={totals.progressed_contacts_total} helper={`replies last 7d: ${totals.replies_last_7d ?? 0}`} />
+          <StatCard label="Warm leads" value={totals.warm_leads_open_total} helper={`reply events total: ${totals.replies_total ?? 0}`} tone="success" />
+        </section>
+
+        <section style={{ display: 'grid', gridTemplateColumns: '1.35fr 0.85fr', gap: 16, marginBottom: 20 }}>
+          <LineChartCard title="Sent vs Replies" subtitle="Ostatnie 14 dni" series={analytics.dailySeries} />
+          <Card>
+            <h2 style={{ marginTop: 0, fontSize: 20 }}>SMTP load / warm-up</h2>
+            <Table>
+              <thead>
+                <tr><th style={th}>Inbox</th><th style={th}>Status</th><th style={th}>Today</th><th style={th}>Load</th></tr>
+              </thead>
+              <tbody>
+                {analytics.smtpLoad.slice(0, 8).map((row) => (
+                  <tr key={row.id}>
+                    <td style={td}>{row.account_key}<div style={{ fontSize: 12, color: '#94a3b8' }}>{row.from_email || '-'}</div></td>
+                    <td style={td}>{row.status}</td>
+                    <td style={td}>{row.sent_today}/{row.daily_limit}</td>
+                    <td style={{ ...td, color: Number(row.load_pct) > 80 ? '#fca5a5' : '#cbd5e1' }}>{row.load_pct ?? 0}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </Card>
         </section>
 
         <section style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 16, marginBottom: 20 }}>
@@ -159,7 +187,7 @@ export default async function Page() {
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 12 }}>
               <div>
                 <h2 style={{ margin: 0, fontSize: 20 }}>Campaign health</h2>
-                <div style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>Najpierw te kampanie, gdzie rośnie czerwony lub żółty status.</div>
+                <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>Najpierw te kampanie, gdzie rośnie czerwony lub żółty status.</div>
               </div>
               <Link href="/campaigns">Zobacz wszystkie →</Link>
             </div>
@@ -180,9 +208,9 @@ export default async function Page() {
                     <td style={td}><Link href={`/campaigns/${r.id}`}>{r.name}</Link></td>
                     <td style={td}>{r.status}</td>
                     <td style={td}>{r.active_total}</td>
-                    <td style={{ ...td, color: '#047857', fontWeight: 700 }}>{r.green}</td>
-                    <td style={{ ...td, color: '#b45309', fontWeight: 700 }}>{r.yellow}</td>
-                    <td style={{ ...td, color: '#b91c1c', fontWeight: 700 }}>{r.red}</td>
+                    <td style={{ ...td, color: '#86efac', fontWeight: 700 }}>{r.green}</td>
+                    <td style={{ ...td, color: '#fdba74', fontWeight: 700 }}>{r.yellow}</td>
+                    <td style={{ ...td, color: '#fca5a5', fontWeight: 700 }}>{r.red}</td>
                   </tr>
                 ))}
               </tbody>
@@ -193,9 +221,9 @@ export default async function Page() {
             <h2 style={{ marginTop: 0, fontSize: 20 }}>What needs attention</h2>
             <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.8 }}>
               <li><b>{totals.queue_overdue ?? 0}</b> rekordów czeka już po planowanym <code>next_run_at</code>.</li>
-              <li><b>{totals.negative_events_total ?? 0}</b> negatywnych eventów wymaga kontroli deliverability.</li>
+              <li><b>{analytics.errorLogs.length}</b> ostatnich błędów wysyłki jest dostępnych w operations/report.</li>
+              <li><b>{analytics.smtpLoad.filter((r) => Number(r.load_pct) >= 80).length}</b> skrzynek jest obciążonych na 80%+ daily limitu.</li>
               <li><b>{totals.warm_leads_open_total ?? 0}</b> warm leadów warto przekuć w realny pipeline handoffu.</li>
-              <li><b>{totals.new_leads_last_7d ?? 0}</b> nowych leadów w 7 dni — dobry punkt odniesienia do trendu.</li>
             </ul>
           </Card>
         </section>
@@ -205,7 +233,7 @@ export default async function Page() {
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 12 }}>
               <div>
                 <h2 style={{ margin: 0, fontSize: 20 }}>Latest warm leads</h2>
-                <div style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>Ostatnie odpowiedzi — tu zwykle zaczyna się najważniejsza praca handlowca.</div>
+                <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>Ostatnie odpowiedzi — tu zwykle zaczyna się najważniejsza praca handlowca.</div>
               </div>
               <Link href="/warm-leads">Pełny pipeline →</Link>
             </div>
@@ -235,7 +263,7 @@ export default async function Page() {
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 12 }}>
               <div>
                 <h2 style={{ margin: 0, fontSize: 20 }}>Upcoming queue</h2>
-                <div style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>Najbliższe rzeczy do wysyłki / follow-upu.</div>
+                <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>Najbliższe rzeczy do wysyłki / follow-upu.</div>
               </div>
               <Link href="/queue">Cała kolejka →</Link>
             </div>

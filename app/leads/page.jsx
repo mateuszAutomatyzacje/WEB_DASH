@@ -4,19 +4,21 @@ import { getSql } from '@/lib/db.js';
 export const dynamic = 'force-dynamic';
 
 const PAGE_SIZE = 25;
-const STATUS_OPTIONS = ['all', 'new', 'enriched', 'email_built', 'queued', 'in_campaign', 'stopped', 'handed_off', 'closed', 'invalid'];
+const STATUS_OPTIONS = ['all', 'new', 'enriched', 'in_campaign', 'stopped', 'closed', 'invalid', 'konkurencja'];
 
 function normalize(searchParams) {
   const query = String(searchParams?.q || '').trim();
   const status = String(searchParams?.status || 'all');
   const emailState = String(searchParams?.email || 'all');
   const enriched = String(searchParams?.enriched || 'all');
+  const campaignState = String(searchParams?.campaign_state || 'all');
   const pageRaw = Number(searchParams?.page || 1);
   return {
     query,
     status: STATUS_OPTIONS.includes(status) ? status : 'all',
     emailState: ['all', 'with_email', 'without_email'].includes(emailState) ? emailState : 'all',
     enriched: ['all', 'yes', 'no'].includes(enriched) ? enriched : 'all',
+    campaignState: ['all', 'enriched_not_in_campaign'].includes(campaignState) ? campaignState : 'all',
     page: Number.isFinite(pageRaw) && pageRaw > 0 ? Math.floor(pageRaw) : 1,
   };
 }
@@ -40,10 +42,12 @@ export default async function LeadsPage({ searchParams }) {
         l.updated_at,
         count(lc.id)::int as contacts_total,
         count(lc.id) filter (where lc.email is not null)::int as contacts_with_email,
-        count(distinct lce.lead_contact_id)::int as enriched_contacts
+        count(distinct lce.lead_contact_id)::int as enriched_contacts,
+        count(distinct cl.id)::int as campaign_links
       from public.leads l
       left join public.lead_contacts lc on lc.lead_id = l.id
       left join public.lead_contact_enrichments lce on lce.lead_contact_id = lc.id and coalesce(lce.ok, true) = true
+      left join public.campaign_leads cl on cl.lead_id = l.id
       where (${statusFilter}::text is null or l.status::text = ${statusFilter})
         and (
           ${queryFilter}::text is null
@@ -65,6 +69,10 @@ export default async function LeadsPage({ searchParams }) {
         or (${filters.enriched} = 'yes' and enriched_contacts > 0)
         or (${filters.enriched} = 'no' and enriched_contacts = 0)
       )
+      and (
+        ${filters.campaignState} = 'all'
+        or (${filters.campaignState} = 'enriched_not_in_campaign' and enriched_contacts > 0 and campaign_links = 0)
+      )
     order by updated_at desc
     limit ${PAGE_SIZE} offset ${offset}
   `;
@@ -74,10 +82,12 @@ export default async function LeadsPage({ searchParams }) {
       select
         l.id as lead_id,
         count(lc.id) filter (where lc.email is not null)::int as contacts_with_email,
-        count(distinct lce.lead_contact_id)::int as enriched_contacts
+        count(distinct lce.lead_contact_id)::int as enriched_contacts,
+        count(distinct cl.id)::int as campaign_links
       from public.leads l
       left join public.lead_contacts lc on lc.lead_id = l.id
       left join public.lead_contact_enrichments lce on lce.lead_contact_id = lc.id and coalesce(lce.ok, true) = true
+      left join public.campaign_leads cl on cl.lead_id = l.id
       where (${statusFilter}::text is null or l.status::text = ${statusFilter})
         and (
           ${queryFilter}::text is null
@@ -99,10 +109,14 @@ export default async function LeadsPage({ searchParams }) {
         or (${filters.enriched} = 'yes' and enriched_contacts > 0)
         or (${filters.enriched} = 'no' and enriched_contacts = 0)
       )
+      and (
+        ${filters.campaignState} = 'all'
+        or (${filters.campaignState} = 'enriched_not_in_campaign' and enriched_contacts > 0 and campaign_links = 0)
+      )
   `;
 
   return (
-    <AppShell title="Leads" subtitle="Lista firm z wyszukiwaniem i filtrami po statusie, emailu i enrichment — szybciej znajdziesz to, co wymaga działania.">
+    <AppShell title="Leads" subtitle="Lista firm z wyszukiwaniem i filtrami po statusie, emailu, enrichment i specjalnym widokiem enriched but not in campaign.">
       <FilterForm>
         <FiltersGrid>
           <Field label="Search company / domain">
@@ -127,6 +141,12 @@ export default async function LeadsPage({ searchParams }) {
               <option value="no">no</option>
             </select>
           </Field>
+          <Field label="Campaign state">
+            <select name="campaign_state" defaultValue={filters.campaignState} style={inputStyle}>
+              <option value="all">all</option>
+              <option value="enriched_not_in_campaign">enriched but not in campaign</option>
+            </select>
+          </Field>
           <Field label="Run filters">
             <button type="submit" style={{ ...inputStyle, cursor: 'pointer', fontWeight: 700 }}>Apply filters</button>
           </Field>
@@ -143,6 +163,7 @@ export default async function LeadsPage({ searchParams }) {
               <th style={th}>contacts</th>
               <th style={th}>with_email</th>
               <th style={th}>enriched</th>
+              <th style={th}>campaign_links</th>
               <th style={th}>updated_at</th>
             </tr>
           </thead>
@@ -155,14 +176,15 @@ export default async function LeadsPage({ searchParams }) {
                 <td style={td}>{r.contacts_total ?? 0}</td>
                 <td style={td}>{r.contacts_with_email ?? 0}</td>
                 <td style={td}>{r.enriched_contacts ?? 0}</td>
+                <td style={td}>{r.campaign_links ?? 0}</td>
                 <td style={td}>{String(r.updated_at)}</td>
               </tr>
             ))}
-            {rows.length === 0 && <tr><td style={td} colSpan={7}>No leads for current filters</td></tr>}
+            {rows.length === 0 && <tr><td style={td} colSpan={8}>No leads for current filters</td></tr>}
           </tbody>
         </Table>
 
-        <Pagination page={filters.page} pageSize={PAGE_SIZE} total={countRow?.total ?? 0} baseParams={{ q: filters.query, status: filters.status, email: filters.emailState, enriched: filters.enriched }} />
+        <Pagination page={filters.page} pageSize={PAGE_SIZE} total={countRow?.total ?? 0} baseParams={{ q: filters.query, status: filters.status, email: filters.emailState, enriched: filters.enriched, campaign_state: filters.campaignState }} />
       </Card>
     </AppShell>
   );

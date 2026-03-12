@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import CampaignConfigPanel from '@/app/components/CampaignConfigPanel.jsx';
+import AdminButton from '@/app/components/AdminButton.jsx';
 import { AppShell, Card, FilterForm, FiltersGrid, Field, Pagination, Table, inputStyle, td, th } from '@/app/components/AppShell.jsx';
 import { getSql } from '@/lib/db.js';
 
@@ -137,7 +138,7 @@ export default async function CampaignsPage({ searchParams }) {
   `;
 
   return (
-    <AppShell title="Campaigns" subtitle="Widok kampanii z filtrowaniem po statusie, ryzyku i wyszukiwaniem po nazwie — bez przekopywania się przez całą tabelę.">
+    <AppShell title="Campaigns" subtitle="Widok kampanii z filtrowaniem po statusie, ryzyku i wyszukiwaniem po nazwie — plus szybkie klonowanie kampanii.">
       <CampaignConfigPanel />
 
       <FilterForm>
@@ -176,7 +177,7 @@ export default async function CampaignsPage({ searchParams }) {
               <th style={th}>green</th>
               <th style={th}>yellow</th>
               <th style={th}>red</th>
-              <th style={th}>created_at</th>
+              <th style={th}>actions</th>
             </tr>
           </thead>
           <tbody>
@@ -190,7 +191,7 @@ export default async function CampaignsPage({ searchParams }) {
                 <td style={{ ...td, color: '#0a7d22', fontWeight: 700 }}>{r.green}</td>
                 <td style={{ ...td, color: '#8a6d00', fontWeight: 700 }}>{r.yellow}</td>
                 <td style={{ ...td, color: '#b00020', fontWeight: 700 }}>{r.red}</td>
-                <td style={td}>{String(r.created_at)}</td>
+                <td style={td}><AdminButton label="Clone Campaign" action="/api/admin/campaign/clone" body={{ campaign_id: r.id }} /></td>
               </tr>
             ))}
             {rows.length === 0 && <tr><td style={td} colSpan={9}>No campaigns for current filters</td></tr>}

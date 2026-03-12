@@ -6,6 +6,16 @@ import { getSql } from '@/lib/db.js';
 
 export const dynamic = 'force-dynamic';
 
+const PERSONALIZATION_TAGS = [
+  ['{{firstName}}', 'lead_contacts.first_name'],
+  ['{{lastName}}', 'lead_contacts.last_name'],
+  ['{{companyName}}', 'leads.company_name'],
+  ['{{domain}}', 'leads.domain'],
+  ['{{title}}', 'lead_contacts.title'],
+  ['{{city}}', 'lead_contacts.city / leads.city'],
+  ['{{country}}', 'lead_contacts.country / leads.country'],
+];
+
 export default async function CampaignDetailPage({ params }) {
   const { id } = params;
 
@@ -84,14 +94,31 @@ export default async function CampaignDetailPage({ params }) {
   `;
 
   const [attemptStats] = await sql`
-    select
-      count(*)::int as attempts_total,
-      count(*) filter (where direction = 'outbound')::int as outbound_total,
-      count(*) filter (where sent_at is not null)::int as main_sent_total,
-      count(*) filter (where follow_up_1_sent_at is not null)::int as follow_up_1_sent_total,
-      count(*) filter (where follow_up_2_sent_at is not null)::int as follow_up_2_sent_total
-    from public.message_attempts
-    where campaign_id = ${id}
+    with base as (
+      select count(*)::int as outbound_total
+      from public.message_attempts
+      where campaign_id = ${id}
+        and direction = 'outbound'
+    ), ev as (
+      select
+        count(*) filter (where me.event_type = 'opened')::int as opened_total,
+        count(*) filter (where me.event_type = 'clicked')::int as clicked_total,
+        count(*) filter (where me.event_type = 'replied')::int as replied_total,
+        count(*) filter (where me.event_type = 'bounced')::int as bounced_total,
+        count(*) filter (where me.event_type = 'failed')::int as failed_total
+      from public.message_attempts ma
+      left join public.message_events me on me.message_attempt_id = ma.id
+      where ma.campaign_id = ${id}
+    ), msg as (
+      select
+        count(*)::int as attempts_total,
+        count(*) filter (where sent_at is not null)::int as main_sent_total,
+        count(*) filter (where follow_up_1_sent_at is not null)::int as follow_up_1_sent_total,
+        count(*) filter (where follow_up_2_sent_at is not null)::int as follow_up_2_sent_total
+      from public.message_attempts
+      where campaign_id = ${id}
+    )
+    select * from base cross join ev cross join msg
   `;
 
   const [monitorStats] = await sql`
@@ -127,46 +154,63 @@ export default async function CampaignDetailPage({ params }) {
     from monitor
   `;
 
+  const [timeline] = await sql`
+    select
+      min(next_run_at) as next_eta,
+      max(next_run_at) as projected_finish,
+      count(*) filter (where next_run_at is not null and next_run_at > now())::int as scheduled_future
+    from public.campaign_leads
+    where campaign_id = ${id}
+      and state in ('new', 'enriched', 'in_campaign')
+  `;
+
+  const [tagCoverage] = await sql`
+    select
+      count(*) filter (where lc.first_name is not null and lc.first_name <> '')::int as first_name,
+      count(*) filter (where lc.last_name is not null and lc.last_name <> '')::int as last_name,
+      count(*) filter (where l.company_name is not null and l.company_name <> '')::int as company_name,
+      count(*) filter (where l.domain is not null and l.domain <> '')::int as domain,
+      count(*) filter (where lc.title is not null and lc.title <> '')::int as title,
+      count(*) filter (where coalesce(lc.city, l.city) is not null and coalesce(lc.city, l.city) <> '')::int as city,
+      count(*) filter (where coalesce(lc.country, l.country) is not null and coalesce(lc.country, l.country) <> '')::int as country,
+      count(*)::int as total
+    from public.campaign_leads cl
+    join public.leads l on l.id = cl.lead_id
+    left join public.lead_contacts lc on lc.id = cl.active_contact_id
+    where cl.campaign_id = ${id}
+  `;
+
+  const [errorSummary] = await sql`
+    select count(*)::int as failed_sends
+    from public.message_sends
+    where campaign_id = ${id}
+      and status = 'failed'
+  `;
+
+  const pct = (n, d) => (d > 0 ? Number(((Number(n || 0) / Number(d || 0)) * 100).toFixed(1)) : 0);
+  const outboundTotal = Number(attemptStats?.outbound_total || 0);
+
   return (
     <AppShell
       title={`Campaign: ${campaign.name}`}
-      subtitle="Szczegóły kampanii, monitoring sekwencji, eventy wiadomości i lista leadów w jednym spójnym widoku."
-      actions={<Link href="/campaigns" style={{ color: '#93c5fd' }}>← Back to campaigns</Link>}
+      subtitle="Szczegóły kampanii, monitoring sekwencji, analityka efektywności, personalizacja i timeline w jednym widoku."
+      actions={<div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}><Link href="/campaigns" style={{ color: '#93c5fd' }}>← Back to campaigns</Link><a href="/api/report/xls" style={{ color: '#93c5fd' }}>Export XLS</a><a href="/api/report/pdf" style={{ color: '#93c5fd' }}>Export PDF</a></div>}
     >
       <div style={{ marginBottom: 18, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <AdminButton
-          label="Set RUNNING"
-          action="/api/admin/campaign/set-status"
-          body={{ campaign_id: campaign.id, status: 'running' }}
-          confirmText={`Ustawić kampanię "${campaign.name}" na RUNNING?`}
-        />
-        <AdminButton
-          label="Pause"
-          action="/api/admin/campaign/set-status"
-          body={{ campaign_id: campaign.id, status: 'paused' }}
-          confirmText={`Wstrzymać kampanię "${campaign.name}"?`}
-        />
-        <AdminButton
-          label="Stop"
-          action="/api/admin/campaign/set-status"
-          body={{ campaign_id: campaign.id, status: 'stopped' }}
-          confirmText={`Zatrzymać kampanię "${campaign.name}"?`}
-        />
-        <AdminButton
-          label="Archive"
-          action="/api/admin/campaign/set-status"
-          body={{ campaign_id: campaign.id, status: 'archived' }}
-          confirmText={`Zarchiwizować kampanię "${campaign.name}"?`}
-        />
+        <AdminButton label="Set RUNNING" action="/api/admin/campaign/set-status" body={{ campaign_id: campaign.id, status: 'running' }} confirmText={`Ustawić kampanię "${campaign.name}" na RUNNING?`} />
+        <AdminButton label="Pause" action="/api/admin/campaign/set-status" body={{ campaign_id: campaign.id, status: 'paused' }} confirmText={`Wstrzymać kampanię "${campaign.name}"?`} />
+        <AdminButton label="Stop" action="/api/admin/campaign/set-status" body={{ campaign_id: campaign.id, status: 'stopped' }} confirmText={`Zatrzymać kampanię "${campaign.name}"?`} />
+        <AdminButton label="Archive" action="/api/admin/campaign/set-status" body={{ campaign_id: campaign.id, status: 'archived' }} confirmText={`Zarchiwizować kampanię "${campaign.name}"?`} />
+        <AdminButton label="Clone Campaign" action="/api/admin/campaign/clone" body={{ campaign_id: campaign.id }} />
       </div>
 
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 20 }}>
-        <StatCard label="Attempts total" value={attemptStats?.attempts_total ?? 0} />
-        <StatCard label="Main sent" value={attemptStats?.main_sent_total ?? 0} />
-        <StatCard label="FU1 sent" value={attemptStats?.follow_up_1_sent_total ?? 0} tone="warn" />
-        <StatCard label="FU2 sent" value={attemptStats?.follow_up_2_sent_total ?? 0} tone="warn" />
-        <StatCard label="Green" value={monitorStats?.green ?? 0} tone="success" helper="reply detected" />
-        <StatCard label="Red" value={monitorStats?.red ?? 0} tone={(monitorStats?.red ?? 0) > 0 ? 'danger' : 'default'} helper="failure / no reply after FU2" />
+        <StatCard label="Open Rate" value={`${pct(attemptStats?.opened_total, outboundTotal)}%`} helper={`opened: ${attemptStats?.opened_total ?? 0}`} />
+        <StatCard label="CTR" value={`${pct(attemptStats?.clicked_total, outboundTotal)}%`} helper={`clicked: ${attemptStats?.clicked_total ?? 0}`} />
+        <StatCard label="Reply Rate" value={`${pct(attemptStats?.replied_total, outboundTotal)}%`} helper={`replied: ${attemptStats?.replied_total ?? 0}`} tone="success" />
+        <StatCard label="Bounce Rate" value={`${pct(attemptStats?.bounced_total, outboundTotal)}%`} helper={`bounced: ${attemptStats?.bounced_total ?? 0}`} tone={pct(attemptStats?.bounced_total, outboundTotal) > 5 ? 'danger' : 'warn'} />
+        <StatCard label="Projected finish" value={timeline?.projected_finish ? String(timeline.projected_finish).slice(0, 16).replace('T', ' ') : '—'} helper={`future scheduled: ${timeline?.scheduled_future ?? 0}`} />
+        <StatCard label="Error logs" value={errorSummary?.failed_sends ?? 0} helper="failed sends in message_sends" tone={(errorSummary?.failed_sends ?? 0) > 0 ? 'danger' : 'default'} />
       </section>
 
       <section style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
@@ -179,6 +223,8 @@ export default async function CampaignDetailPage({ params }) {
               <tr><td style={td}>description</td><td style={td}>{campaign.description || '-'}</td></tr>
               <tr><td style={td}>updated_at</td><td style={td}>{String(campaign.updated_at)}</td></tr>
               <tr><td style={td}>created_at</td><td style={td}>{String(campaign.created_at)}</td></tr>
+              <tr><td style={td}>next_eta</td><td style={td}>{timeline?.next_eta ? String(timeline.next_eta) : '-'}</td></tr>
+              <tr><td style={td}>projected_finish</td><td style={td}>{timeline?.projected_finish ? String(timeline.projected_finish) : '-'}</td></tr>
             </tbody>
           </Table>
         </Card>
@@ -191,7 +237,7 @@ export default async function CampaignDetailPage({ params }) {
         </Card>
       </section>
 
-      <section style={{ display: 'grid', gridTemplateColumns: '0.8fr 1.2fr', gap: 16, marginBottom: 20 }}>
+      <section style={{ display: 'grid', gridTemplateColumns: '0.9fr 1.1fr', gap: 16, marginBottom: 20 }}>
         <Card>
           <h2 style={{ marginTop: 0 }}>Monitoring summary</h2>
           <Table>
@@ -208,6 +254,23 @@ export default async function CampaignDetailPage({ params }) {
         </Card>
 
         <Card>
+          <h2 style={{ marginTop: 0 }}>Available personalization tags</h2>
+          <Table>
+            <thead><tr><th style={th}>Tag</th><th style={th}>Source</th><th style={th}>Coverage</th></tr></thead>
+            <tbody>
+              {PERSONALIZATION_TAGS.map(([tag, source]) => {
+                const key = tag.replace(/[{}]/g, '').replace('firstName', 'first_name').replace('lastName', 'last_name').replace('companyName', 'company_name');
+                const covered = Number(tagCoverage?.[key] || 0);
+                const total = Number(tagCoverage?.total || 0);
+                return <tr key={tag}><td style={td}>{tag}</td><td style={td}>{source}</td><td style={td}>{covered}/{total}</td></tr>;
+              })}
+            </tbody>
+          </Table>
+        </Card>
+      </section>
+
+      <section style={{ display: 'grid', gridTemplateColumns: '0.8fr 1.2fr', gap: 16, marginBottom: 20 }}>
+        <Card>
           <h2 style={{ marginTop: 0 }}>Message events in campaign</h2>
           <Table>
             <thead><tr><th style={th}>event_type</th><th style={th}>count</th></tr></thead>
@@ -216,6 +279,14 @@ export default async function CampaignDetailPage({ params }) {
               {events.length === 0 && <tr><td style={td} colSpan={2}>No message events</td></tr>}
             </tbody>
           </Table>
+        </Card>
+
+        <Card>
+          <h2 style={{ marginTop: 0 }}>Sequence control</h2>
+          <div style={{ color: '#cbd5e1', lineHeight: 1.7 }}>
+            Z tej bazy da się już ręcznie zatrzymać sekwencję dla konkretnego kontaktu z poziomu tabeli poniżej przyciskiem <b>Stop</b>.
+            Możesz też wznowić, przequeue’ować albo ręcznie oznaczyć reply/failure bez czekania na automatyczny event.
+          </div>
         </Card>
       </section>
 
