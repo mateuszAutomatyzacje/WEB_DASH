@@ -17,7 +17,7 @@ const PERSONALIZATION_TAGS = [
 ];
 
 export default async function CampaignDetailPage({ params }) {
-  const { id } = params;
+  const { id } = await params;
 
   const sql = getSql();
   const [campaign] = await sql`
