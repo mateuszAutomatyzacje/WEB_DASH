@@ -4,6 +4,7 @@ Next.js App Router dashboard for the lead funnel → campaign guard system.
 
 ## Env
 - `DATABASE_URL` (Railway Postgres)
+- `WEBDASH_SCHEDULER_TOKEN` (opcjonalny bearer token dla Railway Cron / schedulera)
 
 ## Scripts
 - `npm run dev`
@@ -29,16 +30,27 @@ Set envs in WebDash runtime:
 Then call from scheduler (every 10 minutes):
 - **Method:** `POST`
 - **URL:** `/api/admin/campaign-guard/poll`
-- **Headers:** `Content-Type: application/json`
+- **Headers:**
+  - `Content-Type: application/json`
+  - `Authorization: Bearer <WEBDASH_SCHEDULER_TOKEN>` (recommended)
 - **Body:**
 ```json
 {
   "campaign_id": null,
   "campaign_name": "OUTSOURCING_IT_EVERGREEM",
   "limit": 100,
-  "dry_run": false
+  "dry_run": false,
+  "interval_min": 10
 }
 ```
+
+### Railway Cron / Scheduled Job recipe
+- trigger: every 10 min
+- method: POST
+- target: `https://<twoj-webdash-domain>/api/admin/campaign-guard/poll`
+- auth header: `Authorization: Bearer <WEBDASH_SCHEDULER_TOKEN>`
+- content-type: `application/json`
+- body: jak wyżej
 
 This endpoint now does two things in one run:
 1. auto-sync new leads (`message_attempts` -> `campaign_leads`) for evergreen campaign,

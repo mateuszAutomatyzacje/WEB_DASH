@@ -131,6 +131,7 @@ export default async function EvergreenSyncPage() {
               <tr><td style={td}>Status</td><td style={td}>{campaign.status}</td></tr>
               <tr><td style={td}>Updated</td><td style={td}>{String(campaign.updated_at)}</td></tr>
               <tr><td style={td}>Last sync</td><td style={td}>{settings.last_sync_at || '-'}</td></tr>
+              <tr><td style={td}>Next expected run</td><td style={td}>{settings.next_expected_run_at || '-'}</td></tr>
             </tbody>
           </Table>
         </Card>

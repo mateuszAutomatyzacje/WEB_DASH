@@ -95,6 +95,15 @@ export async function POST(req) {
   try {
     const webhookUrl = process.env.N8N_GUARD_WEBHOOK_URL || 'https://n8n-production-c340.up.railway.app/webhook/campaign-guard-poll';
     const token = process.env.N8N_GUARD_TOKEN || 'SUPER_SECRET_TOKEN';
+    const schedulerToken = process.env.WEBDASH_SCHEDULER_TOKEN || '';
+
+    const authHeader = req.headers.get('authorization') || '';
+    if (schedulerToken) {
+      const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+      if (bearer !== schedulerToken) {
+        return new Response('unauthorized scheduler token', { status: 401 });
+      }
+    }
 
     let body = {};
     try {
@@ -136,12 +145,15 @@ export async function POST(req) {
       data = { raw: text };
     }
 
+    const nextExpectedRunAt = new Date(Date.now() + Number((body?.interval_min || 10)) * 60 * 1000).toISOString();
+
     await sql`
       update campaigns
       set settings = coalesce(settings, '{}'::jsonb) || ${JSON.stringify({
         auto_sync_status: res.ok ? 'running' : 'error',
         last_sync_at: new Date().toISOString(),
         last_sync_ok: res.ok,
+        next_expected_run_at: nextExpectedRunAt,
       })}::jsonb || jsonb_build_object('last_sync_result', ${JSON.stringify(syncResult)}::jsonb, 'last_poll_response_ok', ${res.ok}),
           updated_at = now()
       where id = ${resolvedCampaignId}::uuid
