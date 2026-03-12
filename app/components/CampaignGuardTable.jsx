@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 
-const td = { borderBottom: '1px solid #f0f0f0', padding: '8px 6px', verticalAlign: 'top' };
-const th = { textAlign: 'left', borderBottom: '1px solid #ddd', padding: '8px 6px' };
+const td = { borderBottom: '1px solid #111827', padding: '8px 6px', verticalAlign: 'top', color: '#f8fafc' };
+const th = { textAlign: 'left', borderBottom: '1px solid #1f2937', padding: '8px 6px', color: '#94a3b8' };
 
 function getMonitorStatus(r) {
   const event = (r.latest_event_type || '').toLowerCase();
@@ -11,21 +11,21 @@ function getMonitorStatus(r) {
   const n = Number(r.contact_attempt_no || 1);
 
   if (event === 'replied' || stopReason === 'replied') {
-    return { label: 'GREEN: reply', color: '#0a7d22', bg: '#e8f7ec' };
+    return { label: 'GREEN: reply', color: '#86efac', bg: '#052e16' };
   }
   if (['bounced', 'complained', 'unsubscribed', 'failed'].includes(event)) {
-    return { label: `RED: ${event}`, color: '#b00020', bg: '#fdecef' };
+    return { label: `RED: ${event}`, color: '#fca5a5', bg: '#450a0a' };
   }
   if (n >= 4) {
-    return { label: 'RED: brak odpowiedzi po FU2', color: '#b00020', bg: '#fdecef' };
+    return { label: 'RED: brak odpowiedzi po FU2', color: '#fca5a5', bg: '#450a0a' };
   }
   if (n === 1) {
-    return { label: 'YELLOW: po main, czeka na FU1', color: '#8a6d00', bg: '#fff6db' };
+    return { label: 'YELLOW: po main, czeka na FU1', color: '#fdba74', bg: '#451a03' };
   }
   if (n === 2) {
-    return { label: 'YELLOW: po FU1, czeka na FU2', color: '#8a6d00', bg: '#fff6db' };
+    return { label: 'YELLOW: po FU1, czeka na FU2', color: '#fdba74', bg: '#451a03' };
   }
-  return { label: 'YELLOW: po FU2, oczekiwanie', color: '#8a6d00', bg: '#fff6db' };
+  return { label: 'YELLOW: po FU2, oczekiwanie', color: '#fdba74', bg: '#451a03' };
 }
 
 export default function CampaignGuardTable({ rows = [] }) {
@@ -54,7 +54,7 @@ export default function CampaignGuardTable({ rows = [] }) {
 
   return (
     <div>
-      {msg ? <div style={{ marginBottom: 8, fontSize: 12 }}>{msg}</div> : null}
+      {msg ? <div style={{ marginBottom: 8, fontSize: 12, color: '#cbd5e1' }}>{msg}</div> : null}
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr>
@@ -101,7 +101,7 @@ export default function CampaignGuardTable({ rows = [] }) {
                         key={key}
                         onClick={() => runAction(r.campaign_lead_id, key)}
                         disabled={loadingId === r.campaign_lead_id + key}
-                        style={{ fontSize: 11 }}
+                        style={{ fontSize: 11, background: '#111827', color: '#f8fafc', border: '1px solid #374151', borderRadius: 8, padding: '6px 8px' }}
                       >
                         {loadingId === r.campaign_lead_id + key ? '...' : label}
                       </button>
