@@ -1,11 +1,8 @@
-import Link from 'next/link';
+import { AppShell, Card, StatCard, Table, td, th } from '@/app/components/AppShell.jsx';
 import { getSql } from '@/lib/db.js';
 import EvergreenControlPanel from '@/app/components/EvergreenControlPanel.jsx';
 
 export const dynamic = 'force-dynamic';
-
-const td = { borderBottom: '1px solid #f0f0f0', padding: '8px 6px', verticalAlign: 'top' };
-const th = { textAlign: 'left', borderBottom: '1px solid #ddd', padding: '8px 6px' };
 
 const CAMPAIGN_NAME = 'OUTSOURCING_IT_EVERGREEM';
 
@@ -24,11 +21,9 @@ export default async function EvergreenSyncPage() {
 
   if (!campaign) {
     return (
-      <main style={{ padding: 24 }}>
-        <h1>Evergreen sync monitor</h1>
-        <p><Link href="/">← Overview</Link></p>
-        <p>Brak kampanii <b>{CAMPAIGN_NAME}</b> w tabeli campaigns.</p>
-      </main>
+      <AppShell title="Evergreen sync monitor" subtitle="Nie znaleziono głównej kampanii evergreen w tabeli campaigns.">
+        <Card>Brak kampanii <b>{CAMPAIGN_NAME}</b> w tabeli campaigns.</Card>
+      </AppShell>
     );
   }
 
@@ -113,90 +108,84 @@ export default async function EvergreenSyncPage() {
   `;
 
   return (
-    <main style={{ padding: 24 }}>
-      <h1>Evergreen sync monitor</h1>
-      <p style={{ marginBottom: 14 }}>
-        <Link href="/">← Overview</Link>
-      </p>
+    <AppShell title="Evergreen sync monitor" subtitle="Monitor synchronizacji evergreen: ile par lead+contact już weszło do campaign_leads, co jeszcze brakuje i co zostało zmienione ostatnio.">
+      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 20 }}>
+        <StatCard label="Source pairs" value={kpi?.source_pairs_total ?? 0} />
+        <StatCard label="Evergreen pairs" value={kpi?.evergreen_pairs_total ?? 0} tone="success" />
+        <StatCard label="Missing to sync" value={kpi?.missing_in_campaign_leads ?? 0} tone={(kpi?.missing_in_campaign_leads ?? 0) > 0 ? 'danger' : 'default'} />
+        <StatCard label="Inserted 24h" value={kpi?.inserted_last_24h ?? 0} />
+        <StatCard label="Updated 24h" value={kpi?.updated_last_24h ?? 0} />
+      </section>
 
-      <div style={{ marginBottom: 18, fontSize: 14 }}>
-        <div><b>Campaign:</b> {campaign.name}</div>
-        <div><b>Campaign ID:</b> {campaign.id}</div>
-        <div><b>Status:</b> {campaign.status}</div>
-        <div><b>Updated:</b> {String(campaign.updated_at)}</div>
-      </div>
+      <section style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+        <Card>
+          <h2 style={{ marginTop: 0 }}>Campaign context</h2>
+          <Table>
+            <tbody>
+              <tr><td style={td}>Campaign</td><td style={td}>{campaign.name}</td></tr>
+              <tr><td style={td}>Campaign ID</td><td style={td}>{campaign.id}</td></tr>
+              <tr><td style={td}>Status</td><td style={td}>{campaign.status}</td></tr>
+              <tr><td style={td}>Updated</td><td style={td}>{String(campaign.updated_at)}</td></tr>
+            </tbody>
+          </Table>
+        </Card>
 
-      <EvergreenControlPanel />
+        <EvergreenControlPanel />
+      </section>
 
-      <h2>Sync KPIs</h2>
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 22 }}>
-        <tbody>
-          {[
-            ['Źródło (distinct lead+contact z message_attempts)', kpi?.source_pairs_total ?? 0],
-            ['Jest już w campaign_leads (evergreen)', kpi?.evergreen_pairs_total ?? 0],
-            ['Brakuje do dopisania', kpi?.missing_in_campaign_leads ?? 0],
-            ['Inserted w ostatnich 24h', kpi?.inserted_last_24h ?? 0],
-            ['Updated w ostatnich 24h', kpi?.updated_last_24h ?? 0],
-          ].map(([k, v]) => (
-            <tr key={k}>
-              <td style={td}>{k}</td>
-              <td style={td}><b>{v}</b></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <section style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: 16 }}>
+        <Card>
+          <h2 style={{ marginTop: 0 }}>Recent records in campaign_leads</h2>
+          <Table>
+            <thead>
+              <tr>
+                <th style={th}>company</th>
+                <th style={th}>contact/email</th>
+                <th style={th}>state</th>
+                <th style={th}>attempt</th>
+                <th style={th}>next_run_at</th>
+                <th style={th}>entered_at</th>
+                <th style={th}>updated_at</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recent.map((r) => (
+                <tr key={r.id}>
+                  <td style={td}>{r.company_name || '-'}</td>
+                  <td style={td}>{[r.first_name, r.last_name].filter(Boolean).join(' ') || r.email || '-'}</td>
+                  <td style={td}>{r.state}</td>
+                  <td style={td}>{r.contact_attempt_no ?? '-'}</td>
+                  <td style={td}>{r.next_run_at ? String(r.next_run_at) : '-'}</td>
+                  <td style={td}>{String(r.entered_at)}</td>
+                  <td style={td}>{String(r.updated_at)}</td>
+                </tr>
+              ))}
+              {recent.length === 0 && <tr><td style={td} colSpan={7}>Brak danych</td></tr>}
+            </tbody>
+          </Table>
+        </Card>
 
-      <h2>Ostatnie rekordy w campaign_leads (max 200)</h2>
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 24 }}>
-        <thead>
-          <tr>
-            <th style={th}>company</th>
-            <th style={th}>contact/email</th>
-            <th style={th}>state</th>
-            <th style={th}>attempt</th>
-            <th style={th}>next_run_at</th>
-            <th style={th}>entered_at</th>
-            <th style={th}>updated_at</th>
-          </tr>
-        </thead>
-        <tbody>
-          {recent.map((r) => (
-            <tr key={r.id}>
-              <td style={td}>{r.company_name || '-'}</td>
-              <td style={td}>{[r.first_name, r.last_name].filter(Boolean).join(' ') || r.email || '-'}</td>
-              <td style={td}>{r.state}</td>
-              <td style={td}>{r.contact_attempt_no ?? '-'}</td>
-              <td style={td}>{r.next_run_at ? String(r.next_run_at) : '-'}</td>
-              <td style={td}>{String(r.entered_at)}</td>
-              <td style={td}>{String(r.updated_at)}</td>
-            </tr>
-          ))}
-          {recent.length === 0 && <tr><td style={td} colSpan={7}>Brak danych</td></tr>}
-        </tbody>
-      </table>
-
-      <h2>Brakuje w campaign_leads (sample max 100)</h2>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr>
-            <th style={th}>company</th>
-            <th style={th}>contact/email</th>
-            <th style={th}>lead_id</th>
-            <th style={th}>lead_contact_id</th>
-          </tr>
-        </thead>
-        <tbody>
-          {missingSample.map((r) => (
-            <tr key={`${r.lead_id}-${r.lead_contact_id}`}>
-              <td style={td}>{r.company_name || '-'}</td>
-              <td style={td}>{[r.first_name, r.last_name].filter(Boolean).join(' ') || r.email || '-'}</td>
-              <td style={td}>{r.lead_id}</td>
-              <td style={td}>{r.lead_contact_id}</td>
-            </tr>
-          ))}
-          {missingSample.length === 0 && <tr><td style={td} colSpan={4}>Brak brakujących rekordów</td></tr>}
-        </tbody>
-      </table>
-    </main>
+        <Card>
+          <h2 style={{ marginTop: 0 }}>Missing in campaign_leads</h2>
+          <Table>
+            <thead>
+              <tr>
+                <th style={th}>company</th>
+                <th style={th}>contact/email</th>
+              </tr>
+            </thead>
+            <tbody>
+              {missingSample.map((r) => (
+                <tr key={`${r.lead_id}-${r.lead_contact_id}`}>
+                  <td style={td}>{r.company_name || '-'}</td>
+                  <td style={td}>{[r.first_name, r.last_name].filter(Boolean).join(' ') || r.email || '-'}</td>
+                </tr>
+              ))}
+              {missingSample.length === 0 && <tr><td style={td} colSpan={2}>Brak brakujących rekordów</td></tr>}
+            </tbody>
+          </Table>
+        </Card>
+      </section>
+    </AppShell>
   );
 }
