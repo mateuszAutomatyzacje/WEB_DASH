@@ -30,11 +30,18 @@ export async function PUT(req) {
     const sql = getSql();
 
     const rows = await sql`
-      update campaigns
+      with target as (
+        select id
+        from campaigns
+        where name = ${name}
+        order by created_at desc
+        limit 1
+      )
+      update campaigns c
       set settings = jsonb_set(
             case
-              when settings is null then '{}'::jsonb
-              when jsonb_typeof(settings::jsonb) = 'object' then settings::jsonb
+              when c.settings is null then '{}'::jsonb
+              when jsonb_typeof(c.settings::jsonb) = 'object' then c.settings::jsonb
               else '{}'::jsonb
             end,
             '{evergreen_runner}',
@@ -42,8 +49,9 @@ export async function PUT(req) {
             true
           ),
           updated_at = now()
-      where name = ${name}
-      returning id, name, status, settings
+      from target
+      where c.id = target.id
+      returning c.id, c.name, c.status, c.settings
     `;
 
     if (rows.length === 0) throw new Error(`Campaign not found: ${name}`);
