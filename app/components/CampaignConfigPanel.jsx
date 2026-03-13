@@ -20,6 +20,8 @@ const DEFAULT_RUNNER = {
   apolloMaxPeoplePerCompany: 3,
 };
 
+const LAST_CAMPAIGN_NAME_KEY = 'campaign-evergreen-last-name';
+
 export default function CampaignConfigPanel() {
   const [name, setName] = useState(DEFAULT_NAME);
   const [description, setDescription] = useState('Kampania ciągła dla nowych leadów');
@@ -100,14 +102,23 @@ export default function CampaignConfigPanel() {
   const normalizedWebhookUrl = useMemo(() => String(webhookUrl || '').trim(), [webhookUrl]);
 
   useEffect(() => {
-    refreshStatus();
-    loadCampaignConfig();
-    lastLoadedNameRef.current = DEFAULT_NAME;
+    const boot = async () => {
+      const storedName = typeof window !== 'undefined'
+        ? (window.localStorage.getItem(LAST_CAMPAIGN_NAME_KEY) || '').trim()
+        : '';
+      const initialName = storedName || DEFAULT_NAME;
+      setName(initialName);
+      lastLoadedNameRef.current = initialName;
+      await refreshStatus(initialName);
+      await loadCampaignConfig(initialName);
+    };
+    boot();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    window.localStorage.setItem(LAST_CAMPAIGN_NAME_KEY, normalizedCampaignName);
     window.localStorage.setItem(`campaign-evergreen-draft:${normalizedCampaignName}`, JSON.stringify({
       webhookUrl: normalizedWebhookUrl,
       ...runner,
@@ -174,8 +185,9 @@ export default function CampaignConfigPanel() {
       const text = await res.text();
       const data = (() => { try { return JSON.parse(text); } catch { return { raw: text }; } })();
       if (!res.ok) throw new Error(data?.error || data?.message || text || `HTTP ${res.status}`);
-      setWebhookUrl(data?.evergreen_runner?.webhook_url || normalizedWebhookUrl);
-      setMsg(`OK: evergreen settings saved (${data?.evergreen_runner?.webhook_url || normalizedWebhookUrl})`);
+      const savedWebhook = data?.evergreen_runner?.webhook_url || normalizedWebhookUrl;
+      setWebhookUrl(savedWebhook);
+      setMsg(`OK: saved for ${normalizedCampaignName} → ${savedWebhook}`);
       if (typeof window !== 'undefined') {
         window.localStorage.removeItem(`campaign-evergreen-draft:${normalizedCampaignName}`);
       }
@@ -313,6 +325,7 @@ export default function CampaignConfigPanel() {
                 setWebhookUrl(DEFAULT_WEBHOOK);
                 setRunner(DEFAULT_RUNNER);
                 setMsg('OK: local draft cleared');
+                lastLoadedNameRef.current = normalizedCampaignName;
               }}
             >
               Clear local draft
