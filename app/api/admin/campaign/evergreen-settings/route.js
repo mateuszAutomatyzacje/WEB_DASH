@@ -3,8 +3,9 @@ import { getSql } from '@/lib/db.js';
 const DEFAULT_NAME = 'OUTSOURCING_IT_EVERGREEM';
 
 function normalize(body = {}) {
+  const webhookUrl = String(body?.webhookUrl ?? 'https://n8n-production-c340.up.railway.app/webhook-test/efxblr-test-trigger').trim();
   return {
-    webhook_url: String(body?.webhookUrl || 'https://n8n-production-c340.up.railway.app/webhook-test/efxblr-test-trigger').trim(),
+    webhook_url: webhookUrl,
     base_url: String(body?.baseUrl || 'https://justjoin.it/job-offers').trim(),
     max_pages: Math.max(1, Number(body?.maxPages || 3)),
     budget_max_requests: Math.max(1, Number(body?.budgetMaxRequests || 120)),

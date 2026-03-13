@@ -5,7 +5,7 @@ const DEFAULT_WEBHOOK = 'https://n8n-production-c340.up.railway.app/webhook-test
 
 function normalize(body = {}, stored = {}) {
   return {
-    webhookUrl: String(body?.webhookUrl || stored?.webhook_url || DEFAULT_WEBHOOK).trim(),
+    webhookUrl: String(body?.webhookUrl ?? stored?.webhook_url ?? DEFAULT_WEBHOOK).trim(),
     baseUrl: String(body?.baseUrl || stored?.base_url || 'https://justjoin.it/job-offers').trim(),
     maxPages: Math.max(1, Number(body?.maxPages || stored?.max_pages || 3)),
     budgetMaxRequests: Math.max(1, Number(body?.budgetMaxRequests || stored?.budget_max_requests || 120)),

@@ -105,12 +105,11 @@ export default function CampaignConfigPanel() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const targetName = String(name || DEFAULT_NAME).trim() || DEFAULT_NAME;
-    window.localStorage.setItem(`campaign-evergreen-draft:${targetName}`, JSON.stringify({
-      webhookUrl,
+    window.localStorage.setItem(`campaign-evergreen-draft:${normalizedCampaignName}`, JSON.stringify({
+      webhookUrl: normalizedWebhookUrl,
       ...runner,
     }));
-  }, [name, webhookUrl, runner]);
+  }, [normalizedCampaignName, normalizedWebhookUrl, runner]);
 
   const badgeStyle = useMemo(() => {
     if (currentStatus === 'running') return { background: '#0a7d22', color: '#fff' };
@@ -120,9 +119,12 @@ export default function CampaignConfigPanel() {
     return { background: '#2d2d2d', color: '#fff' };
   }, [currentStatus]);
 
+  const normalizedCampaignName = useMemo(() => String(name || DEFAULT_NAME).trim() || DEFAULT_NAME, [name]);
+  const normalizedWebhookUrl = useMemo(() => String(webhookUrl || '').trim(), [webhookUrl]);
+
   const runnerPayload = useMemo(() => ({
-    campaignName: name,
-    webhookUrl,
+    campaignName: normalizedCampaignName,
+    webhookUrl: normalizedWebhookUrl,
     baseUrl: String(runner.baseUrl || '').trim(),
     maxPages: Number(runner.maxPages || 3),
     budgetMaxRequests: Number(runner.budgetMaxRequests || 120),
@@ -134,7 +136,7 @@ export default function CampaignConfigPanel() {
     testMode: Boolean(runner.testMode),
     apolloApiKey: String(runner.apolloApiKey || ''),
     apolloMaxPeoplePerCompany: Number(runner.apolloMaxPeoplePerCompany || 3),
-  }), [name, webhookUrl, runner]);
+  }), [normalizedCampaignName, normalizedWebhookUrl, runner]);
 
   async function callApi(path, body) {
     setLoading(true);
@@ -163,6 +165,7 @@ export default function CampaignConfigPanel() {
     setLoading(true);
     setMsg('');
     try {
+      if (!normalizedWebhookUrl) throw new Error('Webhook URL is empty');
       const res = await fetch('/api/admin/campaign/evergreen-settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -171,12 +174,13 @@ export default function CampaignConfigPanel() {
       const text = await res.text();
       const data = (() => { try { return JSON.parse(text); } catch { return { raw: text }; } })();
       if (!res.ok) throw new Error(data?.error || data?.message || text || `HTTP ${res.status}`);
-      setMsg('OK: evergreen settings saved');
+      setWebhookUrl(data?.evergreen_runner?.webhook_url || normalizedWebhookUrl);
+      setMsg(`OK: evergreen settings saved (${data?.evergreen_runner?.webhook_url || normalizedWebhookUrl})`);
       if (typeof window !== 'undefined') {
-        window.localStorage.removeItem(`campaign-evergreen-draft:${name}`);
+        window.localStorage.removeItem(`campaign-evergreen-draft:${normalizedCampaignName}`);
       }
-      await refreshStatus(name);
-      await loadCampaignConfig(name);
+      await refreshStatus(normalizedCampaignName);
+      await loadCampaignConfig(normalizedCampaignName);
     } catch (e) {
       setMsg(`ERR: ${String(e?.message || e)}`);
     } finally {
@@ -188,26 +192,31 @@ export default function CampaignConfigPanel() {
     setLoading(true);
     setMsg('');
     try {
-      await fetch('/api/admin/campaign/evergreen-settings', {
+      if (!normalizedWebhookUrl) throw new Error('Webhook URL is empty');
+      const saveRes = await fetch('/api/admin/campaign/evergreen-settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(runnerPayload),
       });
+      const saveText = await saveRes.text();
+      const saveData = (() => { try { return JSON.parse(saveText); } catch { return { raw: saveText }; } })();
+      if (!saveRes.ok) throw new Error(saveData?.error || saveData?.message || saveText || `HTTP ${saveRes.status}`);
+      setWebhookUrl(saveData?.evergreen_runner?.webhook_url || normalizedWebhookUrl);
 
       const res = await fetch('/api/admin/campaign/start-evergreen', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...runnerPayload, mode }),
+        body: JSON.stringify({ ...runnerPayload, webhookUrl: saveData?.evergreen_runner?.webhook_url || normalizedWebhookUrl, mode }),
       });
       const text = await res.text();
       const data = (() => { try { return JSON.parse(text); } catch { return { raw: text }; } })();
       if (!res.ok) throw new Error(data?.error || data?.message || text || `HTTP ${res.status}`);
       setMsg(mode === 'test' ? 'OK: test webhook sent' : 'OK: campaign started with current evergreen vars');
       if (typeof window !== 'undefined') {
-        window.localStorage.removeItem(`campaign-evergreen-draft:${name}`);
+        window.localStorage.removeItem(`campaign-evergreen-draft:${normalizedCampaignName}`);
       }
-      await refreshStatus(name);
-      await loadCampaignConfig(name);
+      await refreshStatus(normalizedCampaignName);
+      await loadCampaignConfig(normalizedCampaignName);
       setTimeout(() => window.location.reload(), 400);
     } catch (e) {
       setMsg(`ERR: ${String(e?.message || e)}`);
@@ -254,7 +263,7 @@ export default function CampaignConfigPanel() {
           <div style={{ marginTop: 8, padding: 12, border: '1px solid #eee', borderRadius: 8, display: 'grid', gap: 10 }}>
             <b>Evergreen variables used on campaign start</b>
 
-            <label style={fieldRow}><span>webhookUrl</span><input value={webhookUrl} onChange={(e) => setWebhookUrl(e.target.value)} style={input} /></label>
+            <label style={fieldRow}><span>webhookUrl</span><input value={webhookUrl} onChange={(e) => setWebhookUrl(e.target.value)} spellCheck={false} autoComplete="off" style={input} /></label>
             <label style={fieldRow}><span>baseUrl</span><input value={runner.baseUrl} onChange={(e) => setRunner((r) => ({ ...r, baseUrl: e.target.value }))} style={input} /></label>
             <label style={fieldRow}><span>maxPages</span><input type="number" min={1} value={runner.maxPages} onChange={(e) => setRunner((r) => ({ ...r, maxPages: e.target.value }))} style={input} /></label>
             <label style={fieldRow}><span>budgetMaxRequests</span><input type="number" min={1} value={runner.budgetMaxRequests} onChange={(e) => setRunner((r) => ({ ...r, budgetMaxRequests: e.target.value }))} style={input} /></label>
@@ -299,7 +308,7 @@ export default function CampaignConfigPanel() {
               disabled={loading}
               onClick={() => {
                 if (typeof window !== 'undefined') {
-                  window.localStorage.removeItem(`campaign-evergreen-draft:${name}`);
+                  window.localStorage.removeItem(`campaign-evergreen-draft:${normalizedCampaignName}`);
                 }
                 setWebhookUrl(DEFAULT_WEBHOOK);
                 setRunner(DEFAULT_RUNNER);
