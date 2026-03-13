@@ -96,6 +96,9 @@ export default function CampaignConfigPanel() {
     }
   }
 
+  const normalizedCampaignName = useMemo(() => String(name || DEFAULT_NAME).trim() || DEFAULT_NAME, [name]);
+  const normalizedWebhookUrl = useMemo(() => String(webhookUrl || '').trim(), [webhookUrl]);
+
   useEffect(() => {
     refreshStatus();
     loadCampaignConfig();
@@ -118,9 +121,6 @@ export default function CampaignConfigPanel() {
     if (currentStatus === 'not_created') return { background: '#666', color: '#fff' };
     return { background: '#2d2d2d', color: '#fff' };
   }, [currentStatus]);
-
-  const normalizedCampaignName = useMemo(() => String(name || DEFAULT_NAME).trim() || DEFAULT_NAME, [name]);
-  const normalizedWebhookUrl = useMemo(() => String(webhookUrl || '').trim(), [webhookUrl]);
 
   const runnerPayload = useMemo(() => ({
     campaignName: normalizedCampaignName,
