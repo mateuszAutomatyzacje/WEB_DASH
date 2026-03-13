@@ -30,7 +30,16 @@ export async function PUT(req) {
 
     const rows = await sql`
       update campaigns
-      set settings = jsonb_set(coalesce(settings, '{}'::jsonb), '{evergreen_runner}', ${JSON.stringify(config)}::jsonb, true),
+      set settings = jsonb_set(
+            case
+              when settings is null then '{}'::jsonb
+              when jsonb_typeof(settings::jsonb) = 'object' then settings::jsonb
+              else '{}'::jsonb
+            end,
+            '{evergreen_runner}',
+            ${JSON.stringify(config)}::jsonb,
+            true
+          ),
           updated_at = now()
       where name = ${name}
       returning id, name, status, settings

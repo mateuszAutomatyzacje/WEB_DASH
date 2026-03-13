@@ -45,22 +45,31 @@ export async function POST(req) {
     await sql`
       update campaigns
       set status = 'running',
-          settings = jsonb_set(coalesce(settings, '{}'::jsonb), '{evergreen_runner}', ${JSON.stringify({
-            webhook_url: cfg.webhookUrl,
-            base_url: cfg.baseUrl,
-            max_pages: cfg.maxPages,
-            budget_max_requests: cfg.budgetMaxRequests,
-            crawl4ai_endpoint: cfg.crawl4aiEndpoint,
-            rate_seconds: cfg.rateSeconds,
-            job_title: cfg.jobTitle,
-            city: cfg.city,
-            experience_level: cfg.experienceLevel,
-            test_mode: cfg.testMode,
-            apollo_api_key: cfg.apolloApiKey,
-            apollo_max_people_per_company: cfg.apolloMaxPeoplePerCompany,
-            run_id: cfg.runId,
-            crawl4ai_health_path: cfg.crawl4aiHealthPath,
-          })}::jsonb, true),
+          settings = jsonb_set(
+            case
+              when settings is null then '{}'::jsonb
+              when jsonb_typeof(settings::jsonb) = 'object' then settings::jsonb
+              else '{}'::jsonb
+            end,
+            '{evergreen_runner}',
+            ${JSON.stringify({
+              webhook_url: cfg.webhookUrl,
+              base_url: cfg.baseUrl,
+              max_pages: cfg.maxPages,
+              budget_max_requests: cfg.budgetMaxRequests,
+              crawl4ai_endpoint: cfg.crawl4aiEndpoint,
+              rate_seconds: cfg.rateSeconds,
+              job_title: cfg.jobTitle,
+              city: cfg.city,
+              experience_level: cfg.experienceLevel,
+              test_mode: cfg.testMode,
+              apollo_api_key: cfg.apolloApiKey,
+              apollo_max_people_per_company: cfg.apolloMaxPeoplePerCompany,
+              run_id: cfg.runId,
+              crawl4ai_health_path: cfg.crawl4aiHealthPath,
+            })}::jsonb,
+            true
+          ),
           updated_at = now()
       where id = ${campaign.id}
     `;
