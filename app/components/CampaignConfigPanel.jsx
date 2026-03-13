@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 const STATUSES = ['draft', 'ready', 'running', 'paused', 'stopped', 'archived'];
 const DEFAULT_NAME = 'OUTSOURCING_IT_EVERGREEM';
@@ -29,6 +29,7 @@ export default function CampaignConfigPanel() {
   const [currentStatus, setCurrentStatus] = useState('unknown');
   const [webhookUrl, setWebhookUrl] = useState(DEFAULT_WEBHOOK);
   const [runner, setRunner] = useState(DEFAULT_RUNNER);
+  const lastLoadedNameRef = useRef('');
 
   async function refreshStatus(targetName = name) {
     try {
@@ -41,33 +42,75 @@ export default function CampaignConfigPanel() {
     }
   }
 
+  function loadDraftFromLocal(targetName) {
+    if (typeof window === 'undefined') return false;
+    try {
+      const raw = window.localStorage.getItem(`campaign-evergreen-draft:${targetName}`);
+      if (!raw) return false;
+      const draft = JSON.parse(raw);
+      setWebhookUrl(draft?.webhookUrl || DEFAULT_WEBHOOK);
+      setRunner({
+        baseUrl: draft?.baseUrl || DEFAULT_RUNNER.baseUrl,
+        maxPages: Number(draft?.maxPages || DEFAULT_RUNNER.maxPages),
+        budgetMaxRequests: Number(draft?.budgetMaxRequests || DEFAULT_RUNNER.budgetMaxRequests),
+        crawl4aiEndpoint: draft?.crawl4aiEndpoint || DEFAULT_RUNNER.crawl4aiEndpoint,
+        rateSeconds: Number(draft?.rateSeconds || DEFAULT_RUNNER.rateSeconds),
+        jobTitle: draft?.jobTitle || DEFAULT_RUNNER.jobTitle,
+        city: draft?.city || DEFAULT_RUNNER.city,
+        experienceLevel: draft?.experienceLevel || DEFAULT_RUNNER.experienceLevel,
+        testMode: Boolean(draft?.testMode),
+        apolloApiKey: draft?.apolloApiKey || DEFAULT_RUNNER.apolloApiKey,
+        apolloMaxPeoplePerCompany: Number(draft?.apolloMaxPeoplePerCompany || DEFAULT_RUNNER.apolloMaxPeoplePerCompany),
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async function loadCampaignConfig(targetName = name) {
     try {
       const res = await fetch(`/api/admin/campaign/get-status?name=${encodeURIComponent(targetName)}`, { cache: 'no-store' });
       const data = await res.json();
       const evergreen = data?.campaign?.settings?.evergreen_runner || {};
-      setWebhookUrl(evergreen?.webhook_url || DEFAULT_WEBHOOK);
-      setRunner({
-        baseUrl: evergreen?.base_url || DEFAULT_RUNNER.baseUrl,
-        maxPages: Number(evergreen?.max_pages || DEFAULT_RUNNER.maxPages),
-        budgetMaxRequests: Number(evergreen?.budget_max_requests || DEFAULT_RUNNER.budgetMaxRequests),
-        crawl4aiEndpoint: evergreen?.crawl4ai_endpoint || DEFAULT_RUNNER.crawl4aiEndpoint,
-        rateSeconds: Number(evergreen?.rate_seconds || DEFAULT_RUNNER.rateSeconds),
-        jobTitle: evergreen?.job_title || DEFAULT_RUNNER.jobTitle,
-        city: evergreen?.city || DEFAULT_RUNNER.city,
-        experienceLevel: evergreen?.experience_level || DEFAULT_RUNNER.experienceLevel,
-        testMode: Boolean(evergreen?.test_mode),
-        apolloApiKey: evergreen?.apollo_api_key || DEFAULT_RUNNER.apolloApiKey,
-        apolloMaxPeoplePerCompany: Number(evergreen?.apollo_max_people_per_company || DEFAULT_RUNNER.apolloMaxPeoplePerCompany),
-      });
-    } catch {}
+      if (Object.keys(evergreen).length > 0) {
+        setWebhookUrl(evergreen?.webhook_url || DEFAULT_WEBHOOK);
+        setRunner({
+          baseUrl: evergreen?.base_url || DEFAULT_RUNNER.baseUrl,
+          maxPages: Number(evergreen?.max_pages || DEFAULT_RUNNER.maxPages),
+          budgetMaxRequests: Number(evergreen?.budget_max_requests || DEFAULT_RUNNER.budgetMaxRequests),
+          crawl4aiEndpoint: evergreen?.crawl4ai_endpoint || DEFAULT_RUNNER.crawl4aiEndpoint,
+          rateSeconds: Number(evergreen?.rate_seconds || DEFAULT_RUNNER.rateSeconds),
+          jobTitle: evergreen?.job_title || DEFAULT_RUNNER.jobTitle,
+          city: evergreen?.city || DEFAULT_RUNNER.city,
+          experienceLevel: evergreen?.experience_level || DEFAULT_RUNNER.experienceLevel,
+          testMode: Boolean(evergreen?.test_mode),
+          apolloApiKey: evergreen?.apollo_api_key || DEFAULT_RUNNER.apolloApiKey,
+          apolloMaxPeoplePerCompany: Number(evergreen?.apollo_max_people_per_company || DEFAULT_RUNNER.apolloMaxPeoplePerCompany),
+        });
+        return;
+      }
+      loadDraftFromLocal(targetName);
+    } catch {
+      loadDraftFromLocal(targetName);
+    }
   }
 
   useEffect(() => {
     refreshStatus();
     loadCampaignConfig();
+    lastLoadedNameRef.current = DEFAULT_NAME;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const targetName = String(name || DEFAULT_NAME).trim() || DEFAULT_NAME;
+    window.localStorage.setItem(`campaign-evergreen-draft:${targetName}`, JSON.stringify({
+      webhookUrl,
+      ...runner,
+    }));
+  }, [name, webhookUrl, runner]);
 
   const badgeStyle = useMemo(() => {
     if (currentStatus === 'running') return { background: '#0a7d22', color: '#fff' };
@@ -129,6 +172,9 @@ export default function CampaignConfigPanel() {
       const data = (() => { try { return JSON.parse(text); } catch { return { raw: text }; } })();
       if (!res.ok) throw new Error(data?.error || data?.message || text || `HTTP ${res.status}`);
       setMsg('OK: evergreen settings saved');
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem(`campaign-evergreen-draft:${name}`);
+      }
       await refreshStatus(name);
       await loadCampaignConfig(name);
     } catch (e) {
@@ -157,6 +203,9 @@ export default function CampaignConfigPanel() {
       const data = (() => { try { return JSON.parse(text); } catch { return { raw: text }; } })();
       if (!res.ok) throw new Error(data?.error || data?.message || text || `HTTP ${res.status}`);
       setMsg(mode === 'test' ? 'OK: test webhook sent' : 'OK: campaign started with current evergreen vars');
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem(`campaign-evergreen-draft:${name}`);
+      }
       await refreshStatus(name);
       await loadCampaignConfig(name);
       setTimeout(() => window.location.reload(), 400);
@@ -178,7 +227,18 @@ export default function CampaignConfigPanel() {
         <div style={{ display: 'grid', gap: 8 }}>
           <label>
             Name
-            <input value={name} onChange={(e) => setName(e.target.value)} style={input} />
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onBlur={async (e) => {
+                const targetName = String(e.target.value || '').trim() || DEFAULT_NAME;
+                if (targetName === lastLoadedNameRef.current) return;
+                lastLoadedNameRef.current = targetName;
+                await refreshStatus(targetName);
+                await loadCampaignConfig(targetName);
+              }}
+              style={input}
+            />
           </label>
 
           <label>
@@ -233,6 +293,20 @@ export default function CampaignConfigPanel() {
 
             <button disabled={loading} onClick={saveEvergreenSettings}>
               Save evergreen vars
+            </button>
+
+            <button
+              disabled={loading}
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  window.localStorage.removeItem(`campaign-evergreen-draft:${name}`);
+                }
+                setWebhookUrl(DEFAULT_WEBHOOK);
+                setRunner(DEFAULT_RUNNER);
+                setMsg('OK: local draft cleared');
+              }}
+            >
+              Clear local draft
             </button>
 
             <button disabled={loading} onClick={() => startEvergreen('test')}>
