@@ -1,0 +1,195 @@
+'use client';
+
+import { useMemo, useState } from 'react';
+
+const DEFAULTS = {
+  campaignName: 'OUTSOURCING_IT_EVERGREEM',
+  baseUrl: 'https://justjoin.it/job-offers',
+  maxPages: 3,
+  budgetMaxRequests: 120,
+  crawl4aiEndpoint: 'https://crawl4ai-production-0915.up.railway.app/crawl',
+  rateSeconds: 1,
+  jobTitle: '',
+  city: 'Poland',
+  experienceLevel: '',
+  testMode: false,
+  apolloApiKey: '',
+  apolloMaxPeoplePerCompany: 3,
+  runId: '',
+  crawl4aiHealthPath: '/health',
+  webhookUrl: 'https://n8n-production-c340.up.railway.app/webhook-test/efxblr-test-trigger',
+};
+
+function toNum(value, fallback) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+async function callJson(url, method, body) {
+  const res = await fetch(url, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const txt = await res.text();
+  let data;
+  try { data = JSON.parse(txt); } catch { data = { raw: txt }; }
+  if (!res.ok || data?.ok === false) throw new Error(data?.error || data?.message || txt || `HTTP ${res.status}`);
+  return data;
+}
+
+export default function EvergreenCampaignSettingsPanel({ initialName, initialConfig }) {
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [result, setResult] = useState(null);
+  const [cfg, setCfg] = useState({ ...DEFAULTS, campaignName: initialName || DEFAULTS.campaignName, ...(initialConfig || {}) });
+
+  const payload = useMemo(() => ({
+    campaignName: String(cfg.campaignName || DEFAULTS.campaignName).trim(),
+    baseUrl: String(cfg.baseUrl || '').trim(),
+    maxPages: toNum(cfg.maxPages, DEFAULTS.maxPages),
+    budgetMaxRequests: toNum(cfg.budgetMaxRequests, DEFAULTS.budgetMaxRequests),
+    crawl4aiEndpoint: String(cfg.crawl4aiEndpoint || '').trim(),
+    rateSeconds: toNum(cfg.rateSeconds, DEFAULTS.rateSeconds),
+    jobTitle: String(cfg.jobTitle || '').trim(),
+    city: String(cfg.city || '').trim(),
+    experienceLevel: String(cfg.experienceLevel || '').trim(),
+    testMode: Boolean(cfg.testMode),
+    apolloApiKey: String(cfg.apolloApiKey || '').trim(),
+    apolloMaxPeoplePerCompany: toNum(cfg.apolloMaxPeoplePerCompany, DEFAULTS.apolloMaxPeoplePerCompany),
+    runId: String(cfg.runId || '').trim(),
+    crawl4aiHealthPath: String(cfg.crawl4aiHealthPath || '').trim(),
+    webhookUrl: String(cfg.webhookUrl || '').trim(),
+  }), [cfg]);
+
+  async function saveOnly() {
+    setLoading(true);
+    setMsg('');
+    try {
+      const data = await callJson('/api/admin/campaign/evergreen-settings', 'PUT', payload);
+      setResult(data);
+      setMsg('SETTINGS SAVED');
+    } catch (e) {
+      setMsg(`ERR: ${String(e?.message || e)}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function trigger(mode) {
+    setLoading(true);
+    setMsg('');
+    try {
+      const data = await callJson('/api/admin/campaign/start-evergreen', 'POST', { ...payload, mode });
+      setResult(data);
+      setMsg(mode === 'test' ? 'TEST WEBHOOK SENT' : 'EVERGREEN STARTED + WEBHOOK SENT');
+    } catch (e) {
+      setMsg(`ERR: ${String(e?.message || e)}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const row = { display: 'grid', gridTemplateColumns: '260px 1fr', gap: 10, alignItems: 'center', marginBottom: 10 };
+  const label = { fontWeight: 700, fontSize: 13, color: '#cbd5e1' };
+  const input = { padding: '8px 10px', borderRadius: 8, border: '1px solid #374151', width: '100%', background: '#111827', color: '#f8fafc' };
+
+  return (
+    <section style={{ border: '1px solid #1f2937', borderRadius: 16, padding: 16, background: '#000', color: '#f8fafc' }}>
+      <h3 style={{ marginTop: 0, fontSize: 20 }}>Evergreen campaign settings</h3>
+      <p style={{ marginTop: 0, color: '#94a3b8', fontSize: 13 }}>
+        Edytowalne ustawienia kampanii + webhook start/test pod n8n.
+      </p>
+
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
+        <button onClick={saveOnly} disabled={loading} style={{ background: '#111827', color: '#f8fafc', border: '1px solid #374151', borderRadius: 8, padding: '8px 10px' }}>{loading ? '...' : 'Save settings'}</button>
+        <button onClick={() => trigger('test')} disabled={loading} style={{ background: '#111827', color: '#f8fafc', border: '1px solid #374151', borderRadius: 8, padding: '8px 10px' }}>{loading ? '...' : 'Send test webhook now'}</button>
+        <button onClick={() => trigger('start')} disabled={loading} style={{ background: '#166534', color: '#f8fafc', border: '1px solid #16a34a', borderRadius: 8, padding: '8px 10px' }}>{loading ? '...' : 'Start evergreen + send now'}</button>
+      </div>
+
+      {msg ? <div style={{ marginBottom: 12, fontSize: 13, color: msg.startsWith('ERR') ? '#fca5a5' : '#86efac' }}><b>{msg}</b></div> : null}
+
+      <div style={row}>
+        <div style={label}>campaignName</div>
+        <input style={input} value={cfg.campaignName} onChange={(e) => setCfg((c) => ({ ...c, campaignName: e.target.value }))} />
+      </div>
+      <div style={row}>
+        <div style={label}>webhookUrl</div>
+        <input style={input} value={cfg.webhookUrl} onChange={(e) => setCfg((c) => ({ ...c, webhookUrl: e.target.value }))} />
+      </div>
+      <div style={row}>
+        <div style={label}>baseUrl</div>
+        <input style={input} value={cfg.baseUrl} onChange={(e) => setCfg((c) => ({ ...c, baseUrl: e.target.value }))} />
+      </div>
+      <div style={row}>
+        <div style={label}>maxPages</div>
+        <input style={input} type="number" min={1} value={cfg.maxPages} onChange={(e) => setCfg((c) => ({ ...c, maxPages: e.target.value }))} />
+      </div>
+      <div style={row}>
+        <div style={label}>budgetMaxRequests</div>
+        <input style={input} type="number" min={1} value={cfg.budgetMaxRequests} onChange={(e) => setCfg((c) => ({ ...c, budgetMaxRequests: e.target.value }))} />
+      </div>
+      <div style={row}>
+        <div style={label}>crawl4aiEndpoint</div>
+        <input style={input} value={cfg.crawl4aiEndpoint} onChange={(e) => setCfg((c) => ({ ...c, crawl4aiEndpoint: e.target.value }))} />
+      </div>
+      <div style={row}>
+        <div style={label}>crawl4aiHealthPath</div>
+        <input style={input} value={cfg.crawl4aiHealthPath} onChange={(e) => setCfg((c) => ({ ...c, crawl4aiHealthPath: e.target.value }))} />
+      </div>
+      <div style={row}>
+        <div style={label}>rateSeconds</div>
+        <input style={input} type="number" step="0.1" min={0} value={cfg.rateSeconds} onChange={(e) => setCfg((c) => ({ ...c, rateSeconds: e.target.value }))} />
+      </div>
+      <div style={row}>
+        <div style={label}>jobTitle</div>
+        <input style={input} value={cfg.jobTitle} onChange={(e) => setCfg((c) => ({ ...c, jobTitle: e.target.value }))} />
+      </div>
+      <div style={row}>
+        <div style={label}>city</div>
+        <input style={input} value={cfg.city} onChange={(e) => setCfg((c) => ({ ...c, city: e.target.value }))} />
+      </div>
+      <div style={row}>
+        <div style={label}>experienceLevel</div>
+        <select style={input} value={cfg.experienceLevel} onChange={(e) => setCfg((c) => ({ ...c, experienceLevel: e.target.value }))}>
+          <option value="">Any</option>
+          <option value="junior">junior</option>
+          <option value="mid">mid</option>
+          <option value="senior">senior</option>
+        </select>
+      </div>
+      <div style={row}>
+        <div style={label}>testMode</div>
+        <label style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <input type="checkbox" checked={Boolean(cfg.testMode)} onChange={(e) => setCfg((c) => ({ ...c, testMode: e.target.checked }))} />
+          <span style={{ fontSize: 13, color: '#94a3b8' }}>Do payloadu idzie jako boolean</span>
+        </label>
+      </div>
+      <div style={row}>
+        <div style={label}>apolloApiKey</div>
+        <input style={input} type="password" value={cfg.apolloApiKey} onChange={(e) => setCfg((c) => ({ ...c, apolloApiKey: e.target.value }))} placeholder="opcjonalnie" />
+      </div>
+      <div style={row}>
+        <div style={label}>apolloMaxPeoplePerCompany</div>
+        <input style={input} type="number" min={1} value={cfg.apolloMaxPeoplePerCompany} onChange={(e) => setCfg((c) => ({ ...c, apolloMaxPeoplePerCompany: e.target.value }))} />
+      </div>
+      <div style={row}>
+        <div style={label}>runId</div>
+        <input style={input} value={cfg.runId} onChange={(e) => setCfg((c) => ({ ...c, runId: e.target.value }))} placeholder="opcjonalnie" />
+      </div>
+
+      <details style={{ marginTop: 14 }}>
+        <summary style={{ cursor: 'pointer', color: '#cbd5e1' }}>Payload preview</summary>
+        <pre style={{ marginTop: 10, background: '#020617', color: '#e2e8f0', padding: 10, borderRadius: 12, overflowX: 'auto', fontSize: 12, border: '1px solid #1f2937' }}>
+          {JSON.stringify(payload, null, 2)}
+        </pre>
+      </details>
+
+      {result ? (
+        <pre style={{ marginTop: 10, background: '#020617', color: '#e2e8f0', padding: 10, borderRadius: 12, overflowX: 'auto', fontSize: 12, border: '1px solid #1f2937' }}>
+          {JSON.stringify(result, null, 2)}
+        </pre>
+      ) : null}
+    </section>
+  );
+}

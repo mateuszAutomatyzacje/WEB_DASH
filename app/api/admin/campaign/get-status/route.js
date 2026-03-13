@@ -7,7 +7,7 @@ export async function GET(req) {
 
     const sql = getSql();
     const rows = await sql`
-      select id, name, status::text as status, updated_at
+      select id, name, status::text as status, updated_at, settings
       from campaigns
       where name = ${name}
       order by created_at desc
@@ -15,7 +15,7 @@ export async function GET(req) {
     `;
 
     if (!rows.length) return Response.json({ ok: false, found: false, name });
-    return Response.json({ ok: true, found: true, ...rows[0] });
+    return Response.json({ ok: true, found: true, campaign: rows[0], ...rows[0] });
   } catch (e) {
     return new Response(String(e?.message || e), { status: 400 });
   }

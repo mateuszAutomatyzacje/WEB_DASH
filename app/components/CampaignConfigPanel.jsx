@@ -3,14 +3,32 @@
 import { useEffect, useMemo, useState } from 'react';
 
 const STATUSES = ['draft', 'ready', 'running', 'paused', 'stopped', 'archived'];
+const DEFAULT_NAME = 'OUTSOURCING_IT_EVERGREEM';
+const DEFAULT_WEBHOOK = 'https://n8n-production-c340.up.railway.app/webhook-test/efxblr-test-trigger';
+
+const DEFAULT_RUNNER = {
+  baseUrl: 'https://justjoin.it/job-offers',
+  maxPages: 3,
+  budgetMaxRequests: 120,
+  crawl4aiEndpoint: 'https://crawl4ai-production-0915.up.railway.app/crawl',
+  rateSeconds: 1,
+  jobTitle: '',
+  city: 'Poland',
+  experienceLevel: '',
+  testMode: false,
+  apolloApiKey: '',
+  apolloMaxPeoplePerCompany: 3,
+};
 
 export default function CampaignConfigPanel() {
-  const [name, setName] = useState('OUTSOURCING_IT_EVERGREEM');
+  const [name, setName] = useState(DEFAULT_NAME);
   const [description, setDescription] = useState('Kampania ciągła dla nowych leadów');
   const [settingsText, setSettingsText] = useState('{"mode":"evergreen","send_interval_min":5}');
   const [msg, setMsg] = useState('');
   const [loading, setLoading] = useState(false);
   const [currentStatus, setCurrentStatus] = useState('unknown');
+  const [webhookUrl, setWebhookUrl] = useState(DEFAULT_WEBHOOK);
+  const [runner, setRunner] = useState(DEFAULT_RUNNER);
 
   async function refreshStatus(targetName = name) {
     try {
@@ -23,8 +41,31 @@ export default function CampaignConfigPanel() {
     }
   }
 
+  async function loadCampaignConfig(targetName = name) {
+    try {
+      const res = await fetch(`/api/admin/campaign/get-status?name=${encodeURIComponent(targetName)}`, { cache: 'no-store' });
+      const data = await res.json();
+      const evergreen = data?.campaign?.settings?.evergreen_runner || {};
+      setWebhookUrl(evergreen?.webhook_url || DEFAULT_WEBHOOK);
+      setRunner({
+        baseUrl: evergreen?.base_url || DEFAULT_RUNNER.baseUrl,
+        maxPages: Number(evergreen?.max_pages || DEFAULT_RUNNER.maxPages),
+        budgetMaxRequests: Number(evergreen?.budget_max_requests || DEFAULT_RUNNER.budgetMaxRequests),
+        crawl4aiEndpoint: evergreen?.crawl4ai_endpoint || DEFAULT_RUNNER.crawl4aiEndpoint,
+        rateSeconds: Number(evergreen?.rate_seconds || DEFAULT_RUNNER.rateSeconds),
+        jobTitle: evergreen?.job_title || DEFAULT_RUNNER.jobTitle,
+        city: evergreen?.city || DEFAULT_RUNNER.city,
+        experienceLevel: evergreen?.experience_level || DEFAULT_RUNNER.experienceLevel,
+        testMode: Boolean(evergreen?.test_mode),
+        apolloApiKey: evergreen?.apollo_api_key || DEFAULT_RUNNER.apolloApiKey,
+        apolloMaxPeoplePerCompany: Number(evergreen?.apollo_max_people_per_company || DEFAULT_RUNNER.apolloMaxPeoplePerCompany),
+      });
+    } catch {}
+  }
+
   useEffect(() => {
     refreshStatus();
+    loadCampaignConfig();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -35,6 +76,22 @@ export default function CampaignConfigPanel() {
     if (currentStatus === 'not_created') return { background: '#666', color: '#fff' };
     return { background: '#2d2d2d', color: '#fff' };
   }, [currentStatus]);
+
+  const runnerPayload = useMemo(() => ({
+    campaignName: name,
+    webhookUrl,
+    baseUrl: String(runner.baseUrl || '').trim(),
+    maxPages: Number(runner.maxPages || 3),
+    budgetMaxRequests: Number(runner.budgetMaxRequests || 120),
+    crawl4aiEndpoint: String(runner.crawl4aiEndpoint || '').trim(),
+    rateSeconds: Number(runner.rateSeconds || 1),
+    jobTitle: String(runner.jobTitle || ''),
+    city: String(runner.city || ''),
+    experienceLevel: String(runner.experienceLevel || ''),
+    testMode: Boolean(runner.testMode),
+    apolloApiKey: String(runner.apolloApiKey || ''),
+    apolloMaxPeoplePerCompany: Number(runner.apolloMaxPeoplePerCompany || 3),
+  }), [name, webhookUrl, runner]);
 
   async function callApi(path, body) {
     setLoading(true);
@@ -49,7 +106,8 @@ export default function CampaignConfigPanel() {
       if (!res.ok) throw new Error(text || `HTTP ${res.status}`);
       const data = (() => { try { return JSON.parse(text); } catch { return { raw: text }; } })();
       setMsg(`OK: ${data?.campaign_id || data?.id || 'done'}`);
-      await refreshStatus(body?.name || name);
+      await refreshStatus(body?.name || body?.campaignName || name);
+      await loadCampaignConfig(body?.name || body?.campaignName || name);
       setTimeout(() => window.location.reload(), 400);
     } catch (e) {
       setMsg(`ERR: ${String(e?.message || e)}`);
@@ -57,6 +115,60 @@ export default function CampaignConfigPanel() {
       setLoading(false);
     }
   }
+
+  async function saveEvergreenSettings() {
+    setLoading(true);
+    setMsg('');
+    try {
+      const res = await fetch('/api/admin/campaign/evergreen-settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(runnerPayload),
+      });
+      const text = await res.text();
+      const data = (() => { try { return JSON.parse(text); } catch { return { raw: text }; } })();
+      if (!res.ok) throw new Error(data?.error || data?.message || text || `HTTP ${res.status}`);
+      setMsg('OK: evergreen settings saved');
+      await refreshStatus(name);
+      await loadCampaignConfig(name);
+    } catch (e) {
+      setMsg(`ERR: ${String(e?.message || e)}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function startEvergreen(mode = 'start') {
+    setLoading(true);
+    setMsg('');
+    try {
+      await fetch('/api/admin/campaign/evergreen-settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(runnerPayload),
+      });
+
+      const res = await fetch('/api/admin/campaign/start-evergreen', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...runnerPayload, mode }),
+      });
+      const text = await res.text();
+      const data = (() => { try { return JSON.parse(text); } catch { return { raw: text }; } })();
+      if (!res.ok) throw new Error(data?.error || data?.message || text || `HTTP ${res.status}`);
+      setMsg(mode === 'test' ? 'OK: test webhook sent' : 'OK: campaign started with current evergreen vars');
+      await refreshStatus(name);
+      await loadCampaignConfig(name);
+      setTimeout(() => window.location.reload(), 400);
+    } catch (e) {
+      setMsg(`ERR: ${String(e?.message || e)}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const fieldRow = { display: 'grid', gridTemplateColumns: '220px 1fr', gap: 10, alignItems: 'center' };
+  const input = { width: '100%' };
 
   return (
     <div style={{ border: '1px solid #ddd', borderRadius: 8, padding: 12, marginBottom: 14 }}>
@@ -66,18 +178,42 @@ export default function CampaignConfigPanel() {
         <div style={{ display: 'grid', gap: 8 }}>
           <label>
             Name
-            <input value={name} onChange={(e) => setName(e.target.value)} style={{ width: '100%' }} />
+            <input value={name} onChange={(e) => setName(e.target.value)} style={input} />
           </label>
 
           <label>
             Description
-            <input value={description} onChange={(e) => setDescription(e.target.value)} style={{ width: '100%' }} />
+            <input value={description} onChange={(e) => setDescription(e.target.value)} style={input} />
           </label>
 
           <label>
             Settings JSON
-            <textarea rows={4} value={settingsText} onChange={(e) => setSettingsText(e.target.value)} style={{ width: '100%' }} />
+            <textarea rows={4} value={settingsText} onChange={(e) => setSettingsText(e.target.value)} style={input} />
           </label>
+
+          <div style={{ marginTop: 8, padding: 12, border: '1px solid #eee', borderRadius: 8, display: 'grid', gap: 10 }}>
+            <b>Evergreen variables used on campaign start</b>
+
+            <label style={fieldRow}><span>webhookUrl</span><input value={webhookUrl} onChange={(e) => setWebhookUrl(e.target.value)} style={input} /></label>
+            <label style={fieldRow}><span>baseUrl</span><input value={runner.baseUrl} onChange={(e) => setRunner((r) => ({ ...r, baseUrl: e.target.value }))} style={input} /></label>
+            <label style={fieldRow}><span>maxPages</span><input type="number" min={1} value={runner.maxPages} onChange={(e) => setRunner((r) => ({ ...r, maxPages: e.target.value }))} style={input} /></label>
+            <label style={fieldRow}><span>budgetMaxRequests</span><input type="number" min={1} value={runner.budgetMaxRequests} onChange={(e) => setRunner((r) => ({ ...r, budgetMaxRequests: e.target.value }))} style={input} /></label>
+            <label style={fieldRow}><span>crawl4aiEndpoint</span><input value={runner.crawl4aiEndpoint} onChange={(e) => setRunner((r) => ({ ...r, crawl4aiEndpoint: e.target.value }))} style={input} /></label>
+            <label style={fieldRow}><span>rateSeconds</span><input type="number" step="0.1" min={0} value={runner.rateSeconds} onChange={(e) => setRunner((r) => ({ ...r, rateSeconds: e.target.value }))} style={input} /></label>
+            <label style={fieldRow}><span>jobTitle</span><input value={runner.jobTitle} onChange={(e) => setRunner((r) => ({ ...r, jobTitle: e.target.value }))} style={input} /></label>
+            <label style={fieldRow}><span>city</span><input value={runner.city} onChange={(e) => setRunner((r) => ({ ...r, city: e.target.value }))} style={input} /></label>
+            <label style={fieldRow}><span>experienceLevel</span>
+              <select value={runner.experienceLevel} onChange={(e) => setRunner((r) => ({ ...r, experienceLevel: e.target.value }))} style={input}>
+                <option value="">Any</option>
+                <option value="junior">junior</option>
+                <option value="mid">mid</option>
+                <option value="senior">senior</option>
+              </select>
+            </label>
+            <label style={fieldRow}><span>testMode</span><input type="checkbox" checked={Boolean(runner.testMode)} onChange={(e) => setRunner((r) => ({ ...r, testMode: e.target.checked }))} /></label>
+            <label style={fieldRow}><span>apolloApiKey</span><input type="password" value={runner.apolloApiKey} onChange={(e) => setRunner((r) => ({ ...r, apolloApiKey: e.target.value }))} style={input} /></label>
+            <label style={fieldRow}><span>apolloMaxPeoplePerCompany</span><input type="number" min={1} value={runner.apolloMaxPeoplePerCompany} onChange={(e) => setRunner((r) => ({ ...r, apolloMaxPeoplePerCompany: e.target.value }))} style={input} /></label>
+          </div>
 
           <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button
@@ -95,11 +231,19 @@ export default function CampaignConfigPanel() {
               Ensure evergreen running
             </button>
 
+            <button disabled={loading} onClick={saveEvergreenSettings}>
+              Save evergreen vars
+            </button>
+
+            <button disabled={loading} onClick={() => startEvergreen('test')}>
+              Test webhook
+            </button>
+
             <button disabled={loading} onClick={() => callApi('/api/admin/campaign/evergreen-status', { name, status: 'stopped' })}>
               Stop evergreen
             </button>
 
-            <button disabled={loading} onClick={() => callApi('/api/admin/campaign/evergreen-status', { name, status: 'running' })}>
+            <button disabled={loading} onClick={() => startEvergreen('start')}>
               Start evergreen
             </button>
           </div>
