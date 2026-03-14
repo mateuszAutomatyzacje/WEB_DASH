@@ -20,9 +20,11 @@ const DEFAULT_CONFIG = {
   testMode: false,
   apolloApiKey: '',
   apolloMaxPeoplePerCompany: 3,
+  sendIntervalMin: 5,
 };
 
 const FIELD_DEFS = [
+  { key: 'sendIntervalMin', label: 'Send interval', type: 'select', options: [5, 10, 15] },
   { key: 'webhookUrl', label: 'n8n Webhook URL', type: 'text' },
   { key: 'baseUrl', label: 'Base URL', type: 'text' },
   { key: 'maxPages', label: 'Max Pages', type: 'number', min: 1 },
@@ -38,6 +40,7 @@ const FIELD_DEFS = [
 ];
 
 function normalizeConfig(raw = {}) {
+  const sendIntervalMin = Number(raw?.sendIntervalMin ?? raw?.send_interval_min ?? DEFAULT_CONFIG.sendIntervalMin);
   return {
     webhookUrl: String(raw?.webhookUrl ?? DEFAULT_CONFIG.webhookUrl).trim(),
     baseUrl: String(raw?.baseUrl ?? DEFAULT_CONFIG.baseUrl).trim(),
@@ -51,30 +54,45 @@ function normalizeConfig(raw = {}) {
     testMode: Boolean(raw?.testMode),
     apolloApiKey: String(raw?.apolloApiKey ?? DEFAULT_CONFIG.apolloApiKey),
     apolloMaxPeoplePerCompany: Math.max(1, Number(raw?.apolloMaxPeoplePerCompany ?? DEFAULT_CONFIG.apolloMaxPeoplePerCompany) || DEFAULT_CONFIG.apolloMaxPeoplePerCompany),
+    sendIntervalMin: [5, 10, 15].includes(sendIntervalMin) ? sendIntervalMin : DEFAULT_CONFIG.sendIntervalMin,
   };
 }
 
-function fromEvergreenRunner(runner = {}) {
-  return normalizeConfig({
-    webhookUrl: runner?.webhook_url,
-    baseUrl: runner?.base_url,
-    maxPages: runner?.max_pages,
-    budgetMaxRequests: runner?.budget_max_requests,
-    crawl4aiEndpoint: runner?.crawl4ai_endpoint,
-    rateSeconds: runner?.rate_seconds,
-    jobTitle: runner?.job_title,
-    city: runner?.city,
-    experienceLevel: runner?.experience_level,
-    testMode: runner?.test_mode,
-    apolloApiKey: runner?.apollo_api_key,
-    apolloMaxPeoplePerCompany: runner?.apollo_max_people_per_company,
-  });
+function fromCampaign(campaign) {
+  const settings = campaign?.settings || {};
+  const runner = settings?.evergreen_runner || {};
+  return {
+    description: campaign?.description || DEFAULT_DESCRIPTION,
+    config: normalizeConfig({
+      webhookUrl: runner?.webhook_url,
+      baseUrl: runner?.base_url,
+      maxPages: runner?.max_pages,
+      budgetMaxRequests: runner?.budget_max_requests,
+      crawl4aiEndpoint: runner?.crawl4ai_endpoint,
+      rateSeconds: runner?.rate_seconds,
+      jobTitle: runner?.job_title,
+      city: runner?.city,
+      experienceLevel: runner?.experience_level,
+      testMode: runner?.test_mode,
+      apolloApiKey: runner?.apollo_api_key,
+      apolloMaxPeoplePerCompany: runner?.apollo_max_people_per_company,
+      sendIntervalMin: settings?.send_interval_min,
+    }),
+    settingsText: JSON.stringify({
+      mode: settings?.mode || 'evergreen',
+      send_interval_min: Number(settings?.send_interval_min || 5),
+      auto_enqueue: settings?.auto_enqueue ?? true,
+      auto_sync_enabled: settings?.auto_sync_enabled ?? true,
+      sync_interval_min: Number(settings?.sync_interval_min || 10),
+      auto_sync_status: settings?.auto_sync_status || 'running',
+    }, null, 2),
+  };
 }
 
 export default function CampaignConfigPanel() {
   const [name, setName] = useState(DEFAULT_NAME);
   const [description, setDescription] = useState(DEFAULT_DESCRIPTION);
-  const [settingsText, setSettingsText] = useState('{"mode":"evergreen","send_interval_min":5}');
+  const [settingsText, setSettingsText] = useState('');
   const [config, setConfig] = useState(DEFAULT_CONFIG);
   const [msg, setMsg] = useState('');
   const [loading, setLoading] = useState(false);
@@ -84,48 +102,36 @@ export default function CampaignConfigPanel() {
   const normalizedCampaignName = useMemo(() => String(name || DEFAULT_NAME).trim() || DEFAULT_NAME, [name]);
   const normalizedConfig = useMemo(() => normalizeConfig(config), [config]);
 
-  async function refreshStatus(targetName = normalizedCampaignName) {
+  async function fetchCampaign(targetName = normalizedCampaignName) {
+    const res = await fetch(`/api/admin/campaign/get-status?name=${encodeURIComponent(targetName)}`, { cache: 'no-store' });
+    const data = await res.json();
+    return data;
+  }
+
+  async function loadFromDb(targetName = normalizedCampaignName) {
     try {
-      const res = await fetch(`/api/admin/campaign/get-status?name=${encodeURIComponent(targetName)}`, { cache: 'no-store' });
-      const data = await res.json();
-      if (data?.found && data?.status) setCurrentStatus(data.status);
-      else setCurrentStatus('not_created');
-      return data;
+      const data = await fetchCampaign(targetName);
+      if (!data?.found || !data?.campaign) {
+        setCurrentStatus('not_created');
+        setDescription(DEFAULT_DESCRIPTION);
+        setConfig(DEFAULT_CONFIG);
+        setSettingsText(JSON.stringify({ mode: 'evergreen', send_interval_min: 5 }, null, 2));
+        return false;
+      }
+      const loaded = fromCampaign(data.campaign);
+      setCurrentStatus(data.status || data.campaign.status || 'unknown');
+      setDescription(loaded.description);
+      setConfig(loaded.config);
+      setSettingsText(loaded.settingsText);
+      return true;
     } catch {
       setCurrentStatus('unknown');
-      return null;
+      return false;
     }
   }
 
   function setConfigField(key, value) {
     setConfig((prev) => normalizeConfig({ ...prev, [key]: value }));
-  }
-
-  function loadDraftFromLocal(targetName) {
-    if (typeof window === 'undefined') return false;
-    try {
-      const raw = window.localStorage.getItem(`campaign-evergreen-draft:${targetName}`);
-      if (!raw) return false;
-      setConfig(normalizeConfig(JSON.parse(raw)));
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  async function loadCampaignConfig(targetName = normalizedCampaignName) {
-    try {
-      const res = await fetch(`/api/admin/campaign/get-status?name=${encodeURIComponent(targetName)}`, { cache: 'no-store' });
-      const data = await res.json();
-      const evergreen = data?.campaign?.settings?.evergreen_runner || {};
-      if (Object.keys(evergreen).length > 0) {
-        setConfig(fromEvergreenRunner(evergreen));
-        return true;
-      }
-      return loadDraftFromLocal(targetName);
-    } catch {
-      return loadDraftFromLocal(targetName);
-    }
   }
 
   useEffect(() => {
@@ -134,8 +140,7 @@ export default function CampaignConfigPanel() {
       const initialName = storedName || DEFAULT_NAME;
       setName(initialName);
       lastLoadedNameRef.current = initialName;
-      await refreshStatus(initialName);
-      await loadCampaignConfig(initialName);
+      await loadFromDb(initialName);
     };
     boot();
   }, []);
@@ -143,8 +148,7 @@ export default function CampaignConfigPanel() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem(LAST_CAMPAIGN_NAME_KEY, normalizedCampaignName);
-    window.localStorage.setItem(`campaign-evergreen-draft:${normalizedCampaignName}`, JSON.stringify(normalizedConfig));
-  }, [normalizedCampaignName, normalizedConfig]);
+  }, [normalizedCampaignName]);
 
   const badgeStyle = useMemo(() => {
     if (currentStatus === 'running') return { background: '#0a7d22', color: '#fff' };
@@ -156,7 +160,7 @@ export default function CampaignConfigPanel() {
 
   const runnerPayload = useMemo(() => ({ campaignName: normalizedCampaignName, ...normalizedConfig }), [normalizedCampaignName, normalizedConfig]);
 
-  async function callApi(path, body) {
+  async function callApi(path, body, { reload = true } = {}) {
     setLoading(true);
     setMsg('');
     try {
@@ -168,18 +172,18 @@ export default function CampaignConfigPanel() {
       const text = await res.text();
       const data = (() => { try { return JSON.parse(text); } catch { return { raw: text }; } })();
       if (!res.ok) throw new Error(data?.error || data?.message || text || `HTTP ${res.status}`);
+      if (reload) await loadFromDb(body?.name || body?.campaignName || normalizedCampaignName);
       setMsg(`OK: ${data?.campaign_id || data?.id || 'done'}`);
-      await refreshStatus(body?.name || body?.campaignName || normalizedCampaignName);
-      await loadCampaignConfig(body?.name || body?.campaignName || normalizedCampaignName);
-      setTimeout(() => window.location.reload(), 400);
+      return data;
     } catch (e) {
       setMsg(`ERR: ${String(e?.message || e)}`);
+      return null;
     } finally {
       setLoading(false);
     }
   }
 
-  async function saveEvergreenSettings() {
+  async function saveCampaignConfig() {
     setLoading(true);
     setMsg('');
     try {
@@ -192,14 +196,8 @@ export default function CampaignConfigPanel() {
       const text = await res.text();
       const data = (() => { try { return JSON.parse(text); } catch { return { raw: text }; } })();
       if (!res.ok) throw new Error(data?.error || data?.message || text || `HTTP ${res.status}`);
-      const savedConfig = fromEvergreenRunner(data?.evergreen_runner || {});
-      setConfig(savedConfig);
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem(`campaign-evergreen-draft:${normalizedCampaignName}`, JSON.stringify(savedConfig));
-      }
+      await loadFromDb(normalizedCampaignName);
       setMsg(`OK: saved for ${normalizedCampaignName}`);
-      await refreshStatus(normalizedCampaignName);
-      await loadCampaignConfig(normalizedCampaignName);
     } catch (e) {
       setMsg(`ERR: ${String(e?.message || e)}`);
     } finally {
@@ -211,7 +209,6 @@ export default function CampaignConfigPanel() {
     setLoading(true);
     setMsg('');
     try {
-      if (!normalizedConfig.webhookUrl) throw new Error('Webhook URL is empty');
       const saveRes = await fetch('/api/admin/campaign/evergreen-settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -220,24 +217,17 @@ export default function CampaignConfigPanel() {
       const saveText = await saveRes.text();
       const saveData = (() => { try { return JSON.parse(saveText); } catch { return { raw: saveText }; } })();
       if (!saveRes.ok) throw new Error(saveData?.error || saveData?.message || saveText || `HTTP ${saveRes.status}`);
-      const savedConfig = fromEvergreenRunner(saveData?.evergreen_runner || {});
-      setConfig(savedConfig);
 
       const res = await fetch('/api/admin/campaign/start-evergreen', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ campaignName: normalizedCampaignName, ...savedConfig, mode }),
+        body: JSON.stringify({ ...runnerPayload, mode }),
       });
       const text = await res.text();
       const data = (() => { try { return JSON.parse(text); } catch { return { raw: text }; } })();
       if (!res.ok) throw new Error(data?.error || data?.message || text || `HTTP ${res.status}`);
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem(`campaign-evergreen-draft:${normalizedCampaignName}`, JSON.stringify(savedConfig));
-      }
+      await loadFromDb(normalizedCampaignName);
       setMsg(mode === 'test' ? 'OK: test webhook sent' : 'OK: campaign started with current saved config');
-      await refreshStatus(normalizedCampaignName);
-      await loadCampaignConfig(normalizedCampaignName);
-      setTimeout(() => window.location.reload(), 400);
     } catch (e) {
       setMsg(`ERR: ${String(e?.message || e)}`);
     } finally {
@@ -250,7 +240,7 @@ export default function CampaignConfigPanel() {
 
   return (
     <div style={{ border: '1px solid #ddd', borderRadius: 8, padding: 12, marginBottom: 14 }}>
-      <h3 style={{ marginTop: 0 }}>Campaign config (test/admin)</h3>
+      <h3 style={{ marginTop: 0 }}>Campaign config</h3>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(480px, 760px) 220px', gap: 14, alignItems: 'start' }}>
         <div style={{ display: 'grid', gap: 8 }}>
@@ -263,8 +253,7 @@ export default function CampaignConfigPanel() {
                 const targetName = String(e.target.value || '').trim() || DEFAULT_NAME;
                 if (targetName === lastLoadedNameRef.current) return;
                 lastLoadedNameRef.current = targetName;
-                await refreshStatus(targetName);
-                await loadCampaignConfig(targetName);
+                await loadFromDb(targetName);
               }}
               style={input}
             />
@@ -277,7 +266,7 @@ export default function CampaignConfigPanel() {
 
           <label>
             Settings JSON
-            <textarea rows={4} value={settingsText} onChange={(e) => setSettingsText(e.target.value)} style={input} />
+            <textarea rows={6} value={settingsText} onChange={(e) => setSettingsText(e.target.value)} style={input} />
           </label>
 
           <div style={{ marginTop: 8, padding: 12, border: '1px solid #eee', borderRadius: 8, display: 'grid', gap: 10 }}>
@@ -296,8 +285,8 @@ export default function CampaignConfigPanel() {
                 return (
                   <label key={field.key} style={fieldRow}>
                     <span>{field.label}</span>
-                    <select value={value} onChange={(e) => setConfigField(field.key, e.target.value)} style={input}>
-                      {field.options.map((opt) => <option key={opt || 'empty'} value={opt}>{opt || 'Any'}</option>)}
+                    <select value={value} onChange={(e) => setConfigField(field.key, field.key === 'sendIntervalMin' ? Number(e.target.value) : e.target.value)} style={input}>
+                      {field.options.map((opt) => <option key={String(opt) || 'empty'} value={opt}>{field.key === 'sendIntervalMin' ? `${opt} min` : (opt || 'Any')}</option>)}
                     </select>
                   </label>
                 );
@@ -326,6 +315,11 @@ export default function CampaignConfigPanel() {
               onClick={async () => {
                 let settings = {};
                 try { settings = settingsText ? JSON.parse(settingsText) : {}; } catch { setMsg('ERR: settings JSON invalid'); return; }
+                settings = {
+                  ...settings,
+                  mode: 'evergreen',
+                  send_interval_min: normalizedConfig.sendIntervalMin,
+                };
                 await callApi('/api/admin/campaign/create', { name: normalizedCampaignName, description, status: 'running', settings });
               }}
             >
@@ -336,22 +330,12 @@ export default function CampaignConfigPanel() {
               Ensure evergreen running
             </button>
 
-            <button disabled={loading} onClick={saveEvergreenSettings}>
+            <button disabled={loading} onClick={saveCampaignConfig}>
               Save config
             </button>
 
-            <button
-              disabled={loading}
-              onClick={() => {
-                if (typeof window !== 'undefined') {
-                  window.localStorage.removeItem(`campaign-evergreen-draft:${normalizedCampaignName}`);
-                }
-                setConfig(DEFAULT_CONFIG);
-                setMsg('OK: local draft cleared');
-                lastLoadedNameRef.current = normalizedCampaignName;
-              }}
-            >
-              Clear local draft
+            <button disabled={loading} onClick={() => loadFromDb(normalizedCampaignName)}>
+              Reload from DB
             </button>
 
             <button disabled={loading} onClick={() => startEvergreen('test')}>

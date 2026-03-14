@@ -2,7 +2,6 @@ import { AppShell, Card, StatCard, Table, td, th } from '@/app/components/AppShe
 import { getSql } from '@/lib/db.js';
 import EvergreenControlPanel from '@/app/components/EvergreenControlPanel.jsx';
 import AutoSyncControlPanel from '@/app/components/AutoSyncControlPanel.jsx';
-import EvergreenCampaignSettingsPanel from '@/app/components/EvergreenCampaignSettingsPanel.jsx';
 
 export const dynamic = 'force-dynamic';
 
@@ -152,27 +151,9 @@ export default async function EvergreenSyncPage() {
       </section>
 
       <section style={{ marginBottom: 20 }}>
-        <EvergreenCampaignSettingsPanel
-          initialName={campaign.name}
-          initialConfig={{
-            campaignName: campaign.name,
-            webhookUrl: settings?.evergreen_runner?.webhook_url,
-            baseUrl: settings?.evergreen_runner?.base_url,
-            maxPages: settings?.evergreen_runner?.max_pages,
-            budgetMaxRequests: settings?.evergreen_runner?.budget_max_requests,
-            crawl4aiEndpoint: settings?.evergreen_runner?.crawl4ai_endpoint,
-            rateSeconds: settings?.evergreen_runner?.rate_seconds,
-            jobTitle: settings?.evergreen_runner?.job_title,
-            city: settings?.evergreen_runner?.city,
-            experienceLevel: settings?.evergreen_runner?.experience_level,
-            testMode: settings?.evergreen_runner?.test_mode,
-            apolloApiKey: settings?.evergreen_runner?.apollo_api_key,
-            apolloMaxPeoplePerCompany: settings?.evergreen_runner?.apollo_max_people_per_company,
-            runId: settings?.evergreen_runner?.run_id,
-            crawl4aiHealthPath: settings?.evergreen_runner?.crawl4ai_health_path,
-            sendIntervalMin: Number(settings?.send_interval_min || 5),
-          }}
-        />
+        <Card>
+          Główna konfiguracja kampanii evergreen jest teraz tylko w <b>Campaigns</b>, żeby nie było duplikatów i rozjazdu UI vs DB.
+        </Card>
       </section>
 
       <section style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: 16 }}>
