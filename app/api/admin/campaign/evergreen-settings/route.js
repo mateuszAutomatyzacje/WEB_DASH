@@ -22,23 +22,37 @@ function normalize(body = {}, stored = {}) {
   };
 }
 
+async function resolveCampaign(sql, body = {}) {
+  const campaignId = String(body?.campaign_id || body?.campaignId || '').trim();
+  if (campaignId) {
+    const rows = await sql`
+      select id, name, status, description, settings
+      from campaigns
+      where id = ${campaignId}
+      limit 1
+    `;
+    return rows[0] || null;
+  }
+
+  const name = String(body?.campaignName || DEFAULT_NAME).trim() || DEFAULT_NAME;
+  const rows = await sql`
+    select id, name, status, description, settings
+    from campaigns
+    where name = ${name}
+    order by created_at desc
+    limit 1
+  `;
+  return rows[0] || null;
+}
+
 export async function PUT(req) {
   try {
     const body = await req.json().catch(() => ({}));
-    const name = String(body?.campaignName || DEFAULT_NAME).trim() || DEFAULT_NAME;
     const sql = getSql();
 
-    const found = await sql`
-      select id, name, status, settings
-      from campaigns
-      where name = ${name}
-      order by created_at desc
-      limit 1
-    `;
+    const campaign = await resolveCampaign(sql, body);
+    if (!campaign) throw new Error(`Campaign not found`);
 
-    if (found.length === 0) throw new Error(`Campaign not found: ${name}`);
-
-    const campaign = found[0];
     const storedRunner = campaign?.settings?.evergreen_runner || {};
     const config = normalize(body, storedRunner);
     const sendIntervalMin = [5, 10, 15].includes(Number(body?.sendIntervalMin))
@@ -69,12 +83,13 @@ export async function PUT(req) {
           ),
           updated_at = now()
       where c.id = ${campaign.id}
-      returning c.id, c.name, c.status, c.settings
+      returning c.id, c.name, c.description, c.status::text as status, c.settings, c.updated_at
     `;
 
     return Response.json({
       ok: true,
       campaign: rows[0],
+      campaign_id: rows[0].id,
       evergreen_runner: rows[0].settings?.evergreen_runner || config,
       send_interval_min: rows[0].settings?.send_interval_min ?? sendIntervalMin,
     });

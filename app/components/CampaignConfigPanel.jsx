@@ -90,6 +90,8 @@ function fromCampaign(campaign) {
 }
 
 export default function CampaignConfigPanel() {
+  const [campaignId, setCampaignId] = useState('');
+  const [duplicateCount, setDuplicateCount] = useState(0);
   const [name, setName] = useState(DEFAULT_NAME);
   const [description, setDescription] = useState(DEFAULT_DESCRIPTION);
   const [settingsText, setSettingsText] = useState('');
@@ -102,27 +104,36 @@ export default function CampaignConfigPanel() {
   const normalizedCampaignName = useMemo(() => String(name || DEFAULT_NAME).trim() || DEFAULT_NAME, [name]);
   const normalizedConfig = useMemo(() => normalizeConfig(config), [config]);
 
-  async function fetchCampaign(targetName = normalizedCampaignName) {
-    const res = await fetch(`/api/admin/campaign/get-status?name=${encodeURIComponent(targetName)}`, { cache: 'no-store' });
-    const data = await res.json();
-    return data;
+  async function fetchCampaign({ id = '', name: targetName = normalizedCampaignName } = {}) {
+    const qs = id
+      ? `campaignId=${encodeURIComponent(id)}`
+      : `name=${encodeURIComponent(targetName)}`;
+    const res = await fetch(`/api/admin/campaign/get-status?${qs}`, { cache: 'no-store' });
+    return res.json();
   }
 
-  async function loadFromDb(targetName = normalizedCampaignName) {
+  async function loadFromDb({ id = '', name: targetName = normalizedCampaignName } = {}) {
     try {
-      const data = await fetchCampaign(targetName);
+      const data = await fetchCampaign({ id, name: targetName });
       if (!data?.found || !data?.campaign) {
+        setCampaignId('');
+        setDuplicateCount(0);
         setCurrentStatus('not_created');
         setDescription(DEFAULT_DESCRIPTION);
         setConfig(DEFAULT_CONFIG);
         setSettingsText(JSON.stringify({ mode: 'evergreen', send_interval_min: 5 }, null, 2));
         return false;
       }
-      const loaded = fromCampaign(data.campaign);
-      setCurrentStatus(data.status || data.campaign.status || 'unknown');
+      const campaign = data.campaign;
+      const loaded = fromCampaign(campaign);
+      setCampaignId(String(campaign.id || ''));
+      setName(campaign.name || targetName || DEFAULT_NAME);
+      setDuplicateCount(Number(data?.duplicate_count_for_name || 1));
+      setCurrentStatus(data.status || campaign.status || 'unknown');
       setDescription(loaded.description);
       setConfig(loaded.config);
       setSettingsText(loaded.settingsText);
+      lastLoadedNameRef.current = campaign.name || targetName || DEFAULT_NAME;
       return true;
     } catch {
       setCurrentStatus('unknown');
@@ -140,7 +151,7 @@ export default function CampaignConfigPanel() {
       const initialName = storedName || DEFAULT_NAME;
       setName(initialName);
       lastLoadedNameRef.current = initialName;
-      await loadFromDb(initialName);
+      await loadFromDb({ name: initialName });
     };
     boot();
   }, []);
@@ -158,7 +169,12 @@ export default function CampaignConfigPanel() {
     return { background: '#2d2d2d', color: '#fff' };
   }, [currentStatus]);
 
-  const runnerPayload = useMemo(() => ({ campaignName: normalizedCampaignName, ...normalizedConfig }), [normalizedCampaignName, normalizedConfig]);
+  const runnerPayload = useMemo(() => ({
+    campaign_id: campaignId || undefined,
+    campaignId: campaignId || undefined,
+    campaignName: normalizedCampaignName,
+    ...normalizedConfig,
+  }), [campaignId, normalizedCampaignName, normalizedConfig]);
 
   async function callApi(path, body, { reload = true } = {}) {
     setLoading(true);
@@ -172,7 +188,7 @@ export default function CampaignConfigPanel() {
       const text = await res.text();
       const data = (() => { try { return JSON.parse(text); } catch { return { raw: text }; } })();
       if (!res.ok) throw new Error(data?.error || data?.message || text || `HTTP ${res.status}`);
-      if (reload) await loadFromDb(body?.name || body?.campaignName || normalizedCampaignName);
+      if (reload) await loadFromDb({ id: String(data?.id || data?.campaign_id || body?.campaign_id || campaignId || ''), name: body?.name || body?.campaignName || normalizedCampaignName });
       setMsg(`OK: ${data?.campaign_id || data?.id || 'done'}`);
       return data;
     } catch (e) {
@@ -196,7 +212,7 @@ export default function CampaignConfigPanel() {
       const text = await res.text();
       const data = (() => { try { return JSON.parse(text); } catch { return { raw: text }; } })();
       if (!res.ok) throw new Error(data?.error || data?.message || text || `HTTP ${res.status}`);
-      await loadFromDb(normalizedCampaignName);
+      await loadFromDb({ id: String(data?.campaign_id || campaignId || ''), name: normalizedCampaignName });
       setMsg(`OK: saved for ${normalizedCampaignName}`);
     } catch (e) {
       setMsg(`ERR: ${String(e?.message || e)}`);
@@ -221,12 +237,12 @@ export default function CampaignConfigPanel() {
       const res = await fetch('/api/admin/campaign/start-evergreen', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...runnerPayload, mode }),
+        body: JSON.stringify({ ...runnerPayload, campaign_id: String(saveData?.campaign_id || campaignId || ''), mode }),
       });
       const text = await res.text();
       const data = (() => { try { return JSON.parse(text); } catch { return { raw: text }; } })();
       if (!res.ok) throw new Error(data?.error || data?.message || text || `HTTP ${res.status}`);
-      await loadFromDb(normalizedCampaignName);
+      await loadFromDb({ id: String(data?.campaign_id || campaignId || ''), name: normalizedCampaignName });
       setMsg(mode === 'test' ? 'OK: test webhook sent' : 'OK: campaign started with current saved config');
     } catch (e) {
       setMsg(`ERR: ${String(e?.message || e)}`);
@@ -252,8 +268,7 @@ export default function CampaignConfigPanel() {
               onBlur={async (e) => {
                 const targetName = String(e.target.value || '').trim() || DEFAULT_NAME;
                 if (targetName === lastLoadedNameRef.current) return;
-                lastLoadedNameRef.current = targetName;
-                await loadFromDb(targetName);
+                await loadFromDb({ name: targetName });
               }}
               style={input}
             />
@@ -320,13 +335,19 @@ export default function CampaignConfigPanel() {
                   mode: 'evergreen',
                   send_interval_min: normalizedConfig.sendIntervalMin,
                 };
-                await callApi('/api/admin/campaign/create', { name: normalizedCampaignName, description, status: 'running', settings });
+                await callApi('/api/admin/campaign/create', {
+                  campaign_id: campaignId || undefined,
+                  name: normalizedCampaignName,
+                  description,
+                  status: 'running',
+                  settings,
+                });
               }}
             >
-              Create campaign
+              Save campaign shell
             </button>
 
-            <button disabled={loading} onClick={() => callApi('/api/admin/campaign/ensure-evergreen', { name: normalizedCampaignName })}>
+            <button disabled={loading} onClick={() => callApi('/api/admin/campaign/ensure-evergreen', { name: normalizedCampaignName }, { reload: true })}>
               Ensure evergreen running
             </button>
 
@@ -334,7 +355,7 @@ export default function CampaignConfigPanel() {
               Save config
             </button>
 
-            <button disabled={loading} onClick={() => loadFromDb(normalizedCampaignName)}>
+            <button disabled={loading} onClick={() => loadFromDb({ id: campaignId, name: normalizedCampaignName })}>
               Reload from DB
             </button>
 
@@ -342,7 +363,7 @@ export default function CampaignConfigPanel() {
               Test webhook
             </button>
 
-            <button disabled={loading} onClick={() => callApi('/api/admin/campaign/evergreen-status', { name: normalizedCampaignName, status: 'stopped' })}>
+            <button disabled={loading} onClick={() => callApi('/api/admin/campaign/evergreen-status', { campaign_id: campaignId || undefined, name: normalizedCampaignName, status: 'stopped' })}>
               Stop evergreen
             </button>
 
@@ -365,8 +386,16 @@ export default function CampaignConfigPanel() {
             ))}
           </ul>
           <div style={{ marginTop: 12, fontSize: 11, color: '#555' }}>
-            Last campaign: <b>{normalizedCampaignName}</b>
+            Campaign ID: <b>{campaignId || '—'}</b>
           </div>
+          <div style={{ marginTop: 8, fontSize: 11, color: duplicateCount > 1 ? '#b00020' : '#555' }}>
+            Matching rows by name: <b>{duplicateCount || 0}</b>
+          </div>
+          {duplicateCount > 1 ? (
+            <div style={{ marginTop: 8, fontSize: 11, color: '#b00020' }}>
+              Uwaga: są duplikaty tej kampanii po name. Panel zapisuje teraz po konkretnym <b>campaign_id</b>.
+            </div>
+          ) : null}
         </aside>
       </div>
 

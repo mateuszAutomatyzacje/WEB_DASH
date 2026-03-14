@@ -1,21 +1,50 @@
 import { getSql } from '@/lib/db.js';
 
+const DEFAULT_NAME = 'OUTSOURCING_IT_EVERGREEM';
+
 export async function GET(req) {
   try {
     const url = new URL(req.url);
-    const name = (url.searchParams.get('name') || 'OUTSOURCING_IT_EVERGREEM').trim();
+    const campaignId = (url.searchParams.get('campaignId') || '').trim();
+    const name = (url.searchParams.get('name') || DEFAULT_NAME).trim();
 
     const sql = getSql();
-    const rows = await sql`
-      select id, name, status::text as status, updated_at, settings
+
+    let rows = [];
+    if (campaignId) {
+      rows = await sql`
+        select id, name, description, status::text as status, created_at, updated_at, settings
+        from campaigns
+        where id = ${campaignId}
+        limit 1
+      `;
+    } else {
+      rows = await sql`
+        select id, name, description, status::text as status, created_at, updated_at, settings
+        from campaigns
+        where name = ${name}
+        order by created_at desc
+        limit 1
+      `;
+    }
+
+    if (!rows.length) return Response.json({ ok: false, found: false, name, campaignId: campaignId || null });
+
+    const campaign = rows[0];
+    const duplicates = await sql`
+      select count(*)::int as total
       from campaigns
-      where name = ${name}
-      order by created_at desc
-      limit 1
+      where name = ${campaign.name}
     `;
 
-    if (!rows.length) return Response.json({ ok: false, found: false, name });
-    return Response.json({ ok: true, found: true, campaign: rows[0], ...rows[0] });
+    return Response.json({
+      ok: true,
+      found: true,
+      matchedBy: campaignId ? 'id' : 'name',
+      duplicate_count_for_name: duplicates[0]?.total ?? 1,
+      campaign,
+      ...campaign,
+    });
   } catch (e) {
     return new Response(String(e?.message || e), { status: 400 });
   }

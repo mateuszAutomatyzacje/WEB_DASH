@@ -6,39 +6,54 @@ const DEFAULT_WEBHOOK = 'https://n8n-production-c340.up.railway.app/webhook-test
 function normalize(body = {}, stored = {}) {
   return {
     webhookUrl: String(body?.webhookUrl ?? stored?.webhook_url ?? DEFAULT_WEBHOOK).trim(),
-    baseUrl: String(body?.baseUrl || stored?.base_url || 'https://justjoin.it/job-offers').trim(),
-    maxPages: Math.max(1, Number(body?.maxPages || stored?.max_pages || 3)),
-    budgetMaxRequests: Math.max(1, Number(body?.budgetMaxRequests || stored?.budget_max_requests || 120)),
-    crawl4aiEndpoint: String(body?.crawl4aiEndpoint || stored?.crawl4ai_endpoint || 'https://crawl4ai-production-0915.up.railway.app/crawl').trim(),
-    rateSeconds: Math.max(0, Number(body?.rateSeconds || stored?.rate_seconds || 1)),
+    baseUrl: String(body?.baseUrl ?? stored?.base_url ?? 'https://justjoin.it/job-offers').trim(),
+    maxPages: Math.max(1, Number(body?.maxPages ?? stored?.max_pages ?? 3)),
+    budgetMaxRequests: Math.max(1, Number(body?.budgetMaxRequests ?? stored?.budget_max_requests ?? 120)),
+    crawl4aiEndpoint: String(body?.crawl4aiEndpoint ?? stored?.crawl4ai_endpoint ?? 'https://crawl4ai-production-0915.up.railway.app/crawl').trim(),
+    rateSeconds: Math.max(0, Number(body?.rateSeconds ?? stored?.rate_seconds ?? 1)),
     jobTitle: body?.jobTitle ?? stored?.job_title ?? '',
     city: body?.city ?? stored?.city ?? 'Poland',
     experienceLevel: body?.experienceLevel ?? stored?.experience_level ?? '',
     testMode: Boolean(typeof body?.testMode === 'undefined' ? stored?.test_mode : body?.testMode),
     apolloApiKey: body?.apolloApiKey ?? stored?.apollo_api_key ?? '',
-    apolloMaxPeoplePerCompany: Math.max(1, Number(body?.apolloMaxPeoplePerCompany || stored?.apollo_max_people_per_company || 3)),
+    apolloMaxPeoplePerCompany: Math.max(1, Number(body?.apolloMaxPeoplePerCompany ?? stored?.apollo_max_people_per_company ?? 3)),
     runId: body?.runId ?? stored?.run_id ?? '',
-    crawl4aiHealthPath: String(body?.crawl4aiHealthPath || stored?.crawl4ai_health_path || '/health').trim(),
+    crawl4aiHealthPath: String(body?.crawl4aiHealthPath ?? stored?.crawl4ai_health_path ?? '/health').trim(),
   };
 }
 
-export async function POST(req) {
-  try {
-    const body = await req.json().catch(() => ({}));
-    const name = String(body?.campaignName || DEFAULT_NAME).trim() || DEFAULT_NAME;
-    const mode = String(body?.mode || 'start').trim();
-    const sql = getSql();
+async function resolveCampaign(sql, body = {}) {
+  const campaignId = String(body?.campaign_id || body?.campaignId || '').trim();
+  if (campaignId) {
+    const rows = await sql`
+      select id, name, status, settings
+      from campaigns
+      where id = ${campaignId}
+      limit 1
+    `;
+    return rows[0] || null;
+  }
 
-    const found = await sql`
+  const name = String(body?.campaignName || DEFAULT_NAME).trim() || DEFAULT_NAME;
+  const rows = await sql`
       select id, name, status, settings
       from campaigns
       where name = ${name}
       order by created_at desc
       limit 1
     `;
-    if (found.length === 0) throw new Error(`Campaign not found: ${name}`);
+  return rows[0] || null;
+}
 
-    const campaign = found[0];
+export async function POST(req) {
+  try {
+    const body = await req.json().catch(() => ({}));
+    const mode = String(body?.mode || 'start').trim();
+    const sql = getSql();
+
+    const campaign = await resolveCampaign(sql, body);
+    if (!campaign) throw new Error(`Campaign not found`);
+
     const stored = campaign?.settings?.evergreen_runner || {};
     const cfg = normalize(body, stored);
 
@@ -88,7 +103,8 @@ export async function POST(req) {
       apolloMaxPeoplePerCompany: cfg.apolloMaxPeoplePerCompany,
       runId: cfg.runId || null,
       crawl4aiHealthPath: cfg.crawl4aiHealthPath,
-      campaignName: name,
+      campaignId: campaign.id,
+      campaignName: campaign.name,
       triggerMode: mode,
     };
 
@@ -108,7 +124,7 @@ export async function POST(req) {
       ok: true,
       mode,
       campaign_id: campaign.id,
-      campaign_name: name,
+      campaign_name: campaign.name,
       status: 'running',
       webhook_url: cfg.webhookUrl,
       request_payload: payload,
