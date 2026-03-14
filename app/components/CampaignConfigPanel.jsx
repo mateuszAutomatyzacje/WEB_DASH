@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 const STATUSES = ['draft', 'ready', 'running', 'paused', 'stopped', 'archived'];
@@ -101,6 +102,7 @@ export default function CampaignConfigPanel({ initialCampaignId = '', initialCam
   const [currentStatus, setCurrentStatus] = useState('unknown');
   const [dbSnapshot, setDbSnapshot] = useState(null);
   const lastLoadedNameRef = useRef('');
+  const router = useRouter();
 
   const normalizedCampaignName = useMemo(() => String(name || DEFAULT_NAME).trim() || DEFAULT_NAME, [name]);
   const normalizedConfig = useMemo(() => normalizeConfig(config), [config]);
@@ -228,6 +230,7 @@ export default function CampaignConfigPanel({ initialCampaignId = '', initialCam
       const data = (() => { try { return JSON.parse(text); } catch { return { raw: text }; } })();
       if (!res.ok) throw new Error(data?.error || data?.message || text || `HTTP ${res.status}`);
       await loadFromDb({ id: String(data?.campaign_id || campaignId || ''), name: normalizedCampaignName });
+      router.refresh();
       setMsg(`OK: saved for ${normalizedCampaignName}`);
     } catch (e) {
       setMsg(`ERR: ${String(e?.message || e)}`);
@@ -258,6 +261,7 @@ export default function CampaignConfigPanel({ initialCampaignId = '', initialCam
       const data = (() => { try { return JSON.parse(text); } catch { return { raw: text }; } })();
       if (!res.ok) throw new Error(data?.error || data?.message || text || `HTTP ${res.status}`);
       await loadFromDb({ id: String(data?.campaign_id || campaignId || ''), name: normalizedCampaignName });
+      router.refresh();
       setMsg(mode === 'test' ? 'OK: test webhook sent' : 'OK: campaign started with current saved config');
     } catch (e) {
       setMsg(`ERR: ${String(e?.message || e)}`);
@@ -359,15 +363,11 @@ export default function CampaignConfigPanel({ initialCampaignId = '', initialCam
                 });
               }}
             >
-              Save campaign shell
-            </button>
-
-            <button disabled={loading} onClick={() => callApi('/api/admin/campaign/ensure-evergreen', { name: normalizedCampaignName }, { reload: true })}>
-              Ensure evergreen running
+              Save campaign
             </button>
 
             <button disabled={loading} onClick={saveCampaignConfig}>
-              Save config
+              Save dynamic config
             </button>
 
             <button disabled={loading} onClick={() => loadFromDb({ id: campaignId, name: normalizedCampaignName })}>
@@ -378,12 +378,12 @@ export default function CampaignConfigPanel({ initialCampaignId = '', initialCam
               Test webhook
             </button>
 
-            <button disabled={loading} onClick={() => callApi('/api/admin/campaign/evergreen-status', { campaign_id: campaignId || undefined, name: normalizedCampaignName, status: 'stopped' })}>
-              Stop evergreen
-            </button>
-
             <button disabled={loading} onClick={() => startEvergreen('start')}>
               Start evergreen
+            </button>
+
+            <button disabled={loading} onClick={() => callApi('/api/admin/campaign/evergreen-status', { campaign_id: campaignId || undefined, name: normalizedCampaignName, status: 'stopped' })}>
+              Stop evergreen
             </button>
           </div>
         </div>
