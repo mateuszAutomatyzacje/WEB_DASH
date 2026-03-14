@@ -1,12 +1,11 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 const STATUSES = ['draft', 'ready', 'running', 'paused', 'stopped', 'archived'];
 const DEFAULT_NAME = 'OUTSOURCING_IT_EVERGREEM';
 const DEFAULT_DESCRIPTION = 'Kampania ciągła dla nowych leadów';
-const LAST_CAMPAIGN_NAME_KEY = 'campaign-evergreen-last-name';
 
 const DEFAULT_CONFIG = {
   webhookUrl: 'https://n8n-production-c340.up.railway.app/webhook-test/efxblr-test-trigger',
@@ -91,9 +90,10 @@ function fromCampaign(campaign) {
 }
 
 export default function CampaignConfigPanel({ initialCampaignId = '', initialCampaignName = DEFAULT_NAME }) {
-  const [campaignId, setCampaignId] = useState('');
+  const router = useRouter();
+  const [campaignId, setCampaignId] = useState(String(initialCampaignId || ''));
   const [duplicateCount, setDuplicateCount] = useState(0);
-  const [name, setName] = useState(DEFAULT_NAME);
+  const [name, setName] = useState(initialCampaignName || DEFAULT_NAME);
   const [description, setDescription] = useState(DEFAULT_DESCRIPTION);
   const [settingsText, setSettingsText] = useState('');
   const [config, setConfig] = useState(DEFAULT_CONFIG);
@@ -101,37 +101,28 @@ export default function CampaignConfigPanel({ initialCampaignId = '', initialCam
   const [loading, setLoading] = useState(false);
   const [currentStatus, setCurrentStatus] = useState('unknown');
   const [dbSnapshot, setDbSnapshot] = useState(null);
-  const lastLoadedNameRef = useRef('');
-  const router = useRouter();
 
   const normalizedCampaignName = useMemo(() => String(name || DEFAULT_NAME).trim() || DEFAULT_NAME, [name]);
   const normalizedConfig = useMemo(() => normalizeConfig(config), [config]);
 
-  async function fetchCampaign({ id = '', name: targetName = normalizedCampaignName } = {}) {
-    const qs = id
-      ? `campaignId=${encodeURIComponent(id)}`
-      : `name=${encodeURIComponent(targetName)}`;
-    const res = await fetch(`/api/admin/campaign/get-status?${qs}`, { cache: 'no-store' });
+  async function fetchCampaign(id) {
+    const res = await fetch(`/api/admin/campaign/get-status?campaignId=${encodeURIComponent(id)}`, { cache: 'no-store' });
     return res.json();
   }
 
-  async function loadFromDb({ id = '', name: targetName = normalizedCampaignName } = {}) {
+  async function loadFromDb(id = campaignId) {
+    if (!id) return false;
     try {
-      const data = await fetchCampaign({ id, name: targetName });
+      const data = await fetchCampaign(id);
       if (!data?.found || !data?.campaign) {
-        setCampaignId('');
-        setDuplicateCount(0);
         setDbSnapshot(null);
         setCurrentStatus('not_created');
-        setDescription(DEFAULT_DESCRIPTION);
-        setConfig(DEFAULT_CONFIG);
-        setSettingsText(JSON.stringify({ mode: 'evergreen', send_interval_min: 5 }, null, 2));
         return false;
       }
       const campaign = data.campaign;
       const loaded = fromCampaign(campaign);
       setCampaignId(String(campaign.id || ''));
-      setName(campaign.name || targetName || DEFAULT_NAME);
+      setName(campaign.name || DEFAULT_NAME);
       setDuplicateCount(Number(data?.duplicate_count_for_name || 1));
       setCurrentStatus(data.status || campaign.status || 'unknown');
       setDescription(loaded.description);
@@ -146,7 +137,6 @@ export default function CampaignConfigPanel({ initialCampaignId = '', initialCam
         send_interval_min: campaign?.settings?.send_interval_min,
         evergreen_runner: campaign?.settings?.evergreen_runner || null,
       });
-      lastLoadedNameRef.current = campaign.name || targetName || DEFAULT_NAME;
       return true;
     } catch {
       setCurrentStatus('unknown');
@@ -154,44 +144,13 @@ export default function CampaignConfigPanel({ initialCampaignId = '', initialCam
     }
   }
 
+  useEffect(() => {
+    if (initialCampaignId) loadFromDb(String(initialCampaignId));
+  }, [initialCampaignId]);
+
   function setConfigField(key, value) {
     setConfig((prev) => normalizeConfig({ ...prev, [key]: value }));
   }
-
-  useEffect(() => {
-    const boot = async () => {
-      const storedName = typeof window !== 'undefined' ? (window.localStorage.getItem(LAST_CAMPAIGN_NAME_KEY) || '').trim() : '';
-      const preferredName = storedName || initialCampaignName || DEFAULT_NAME;
-      setName(preferredName);
-      lastLoadedNameRef.current = preferredName;
-      if (initialCampaignId) {
-        const ok = await loadFromDb({ id: initialCampaignId, name: preferredName });
-        if (ok) return;
-      }
-      await loadFromDb({ name: preferredName });
-    };
-    boot();
-  }, [initialCampaignId, initialCampaignName]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    window.localStorage.setItem(LAST_CAMPAIGN_NAME_KEY, normalizedCampaignName);
-  }, [normalizedCampaignName]);
-
-  const badgeStyle = useMemo(() => {
-    if (currentStatus === 'running') return { background: '#0a7d22', color: '#fff' };
-    if (currentStatus === 'paused') return { background: '#8a6d00', color: '#fff' };
-    if (currentStatus === 'stopped') return { background: '#a00020', color: '#fff' };
-    if (currentStatus === 'not_created') return { background: '#666', color: '#fff' };
-    return { background: '#2d2d2d', color: '#fff' };
-  }, [currentStatus]);
-
-  const runnerPayload = useMemo(() => ({
-    campaign_id: campaignId || undefined,
-    campaignId: campaignId || undefined,
-    campaignName: normalizedCampaignName,
-    ...normalizedConfig,
-  }), [campaignId, normalizedCampaignName, normalizedConfig]);
 
   async function callApi(path, body, { reload = true } = {}) {
     setLoading(true);
@@ -205,7 +164,7 @@ export default function CampaignConfigPanel({ initialCampaignId = '', initialCam
       const text = await res.text();
       const data = (() => { try { return JSON.parse(text); } catch { return { raw: text }; } })();
       if (!res.ok) throw new Error(data?.error || data?.message || text || `HTTP ${res.status}`);
-      if (reload) await loadFromDb({ id: String(data?.id || data?.campaign_id || body?.campaign_id || campaignId || ''), name: body?.name || body?.campaignName || normalizedCampaignName });
+      if (reload) await loadFromDb(String(data?.id || data?.campaign_id || body?.campaign_id || campaignId || ''));
       setMsg(`OK: ${data?.campaign_id || data?.id || 'done'}`);
       return data;
     } catch (e) {
@@ -216,20 +175,39 @@ export default function CampaignConfigPanel({ initialCampaignId = '', initialCam
     }
   }
 
-  async function saveCampaignConfig() {
+  async function saveCampaign() {
+    let settings = {};
+    try { settings = settingsText ? JSON.parse(settingsText) : {}; } catch { setMsg('ERR: settings JSON invalid'); return; }
+    settings = {
+      ...settings,
+      mode: 'evergreen',
+      send_interval_min: normalizedConfig.sendIntervalMin,
+    };
+    await callApi('/api/admin/campaign/create', {
+      campaign_id: campaignId,
+      name: normalizedCampaignName,
+      description,
+      status: 'running',
+      settings,
+    });
+    router.refresh();
+  }
+
+  async function saveDynamicConfig() {
     setLoading(true);
     setMsg('');
     try {
+      if (!campaignId) throw new Error('missing campaign_id');
       if (!normalizedConfig.webhookUrl) throw new Error('Webhook URL is empty');
       const res = await fetch('/api/admin/campaign/evergreen-settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(runnerPayload),
+        body: JSON.stringify({ campaign_id: campaignId, campaignName: normalizedCampaignName, ...normalizedConfig }),
       });
       const text = await res.text();
       const data = (() => { try { return JSON.parse(text); } catch { return { raw: text }; } })();
       if (!res.ok) throw new Error(data?.error || data?.message || text || `HTTP ${res.status}`);
-      await loadFromDb({ id: String(data?.campaign_id || campaignId || ''), name: normalizedCampaignName });
+      await loadFromDb(String(data?.campaign_id || campaignId));
       router.refresh();
       setMsg(`OK: saved for ${normalizedCampaignName}`);
     } catch (e) {
@@ -243,10 +221,11 @@ export default function CampaignConfigPanel({ initialCampaignId = '', initialCam
     setLoading(true);
     setMsg('');
     try {
+      if (!campaignId) throw new Error('missing campaign_id');
       const saveRes = await fetch('/api/admin/campaign/evergreen-settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(runnerPayload),
+        body: JSON.stringify({ campaign_id: campaignId, campaignName: normalizedCampaignName, ...normalizedConfig }),
       });
       const saveText = await saveRes.text();
       const saveData = (() => { try { return JSON.parse(saveText); } catch { return { raw: saveText }; } })();
@@ -255,12 +234,12 @@ export default function CampaignConfigPanel({ initialCampaignId = '', initialCam
       const res = await fetch('/api/admin/campaign/start-evergreen', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...runnerPayload, campaign_id: String(saveData?.campaign_id || campaignId || ''), mode }),
+        body: JSON.stringify({ campaign_id: campaignId, campaignName: normalizedCampaignName, ...normalizedConfig, mode }),
       });
       const text = await res.text();
       const data = (() => { try { return JSON.parse(text); } catch { return { raw: text }; } })();
       if (!res.ok) throw new Error(data?.error || data?.message || text || `HTTP ${res.status}`);
-      await loadFromDb({ id: String(data?.campaign_id || campaignId || ''), name: normalizedCampaignName });
+      await loadFromDb(String(data?.campaign_id || campaignId));
       router.refresh();
       setMsg(mode === 'test' ? 'OK: test webhook sent' : 'OK: campaign started with current saved config');
     } catch (e) {
@@ -272,25 +251,26 @@ export default function CampaignConfigPanel({ initialCampaignId = '', initialCam
 
   const fieldRow = { display: 'grid', gridTemplateColumns: '220px 1fr', gap: 10, alignItems: 'center' };
   const input = { width: '100%' };
+  const badgeStyle = currentStatus === 'running'
+    ? { background: '#0a7d22', color: '#fff' }
+    : currentStatus === 'paused'
+      ? { background: '#8a6d00', color: '#fff' }
+      : currentStatus === 'stopped'
+        ? { background: '#a00020', color: '#fff' }
+        : { background: '#2d2d2d', color: '#fff' };
 
   return (
     <div style={{ border: '1px solid #ddd', borderRadius: 8, padding: 12, marginBottom: 14 }}>
       <h3 style={{ marginTop: 0 }}>Campaign config</h3>
+      <div style={{ fontSize: 12, color: '#555', marginBottom: 10 }}>
+        Ten formularz operuje na jednym, przypiętym rekordzie kampanii w DB.
+      </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(480px, 760px) 220px', gap: 14, alignItems: 'start' }}>
         <div style={{ display: 'grid', gap: 8 }}>
           <label>
-            Name
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              onBlur={async (e) => {
-                const targetName = String(e.target.value || '').trim() || DEFAULT_NAME;
-                if (targetName === lastLoadedNameRef.current) return;
-                await loadFromDb({ name: targetName });
-              }}
-              style={input}
-            />
+            Campaign name
+            <input value={name} readOnly style={{ ...input, background: '#f5f5f5' }} />
           </label>
 
           <label>
@@ -334,8 +314,6 @@ export default function CampaignConfigPanel({ initialCampaignId = '', initialCam
                     step={field.step}
                     value={field.type === 'number' ? value : String(value ?? '')}
                     onChange={(e) => setConfigField(field.key, field.type === 'number' ? e.target.value : e.target.value)}
-                    spellCheck={field.key === 'webhookUrl' ? false : undefined}
-                    autoComplete={field.key === 'webhookUrl' ? 'off' : undefined}
                     style={input}
                   />
                 </label>
@@ -344,47 +322,12 @@ export default function CampaignConfigPanel({ initialCampaignId = '', initialCam
           </div>
 
           <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button
-              disabled={loading}
-              onClick={async () => {
-                let settings = {};
-                try { settings = settingsText ? JSON.parse(settingsText) : {}; } catch { setMsg('ERR: settings JSON invalid'); return; }
-                settings = {
-                  ...settings,
-                  mode: 'evergreen',
-                  send_interval_min: normalizedConfig.sendIntervalMin,
-                };
-                await callApi('/api/admin/campaign/create', {
-                  campaign_id: campaignId || undefined,
-                  name: normalizedCampaignName,
-                  description,
-                  status: 'running',
-                  settings,
-                });
-              }}
-            >
-              Save campaign
-            </button>
-
-            <button disabled={loading} onClick={saveCampaignConfig}>
-              Save dynamic config
-            </button>
-
-            <button disabled={loading} onClick={() => loadFromDb({ id: campaignId, name: normalizedCampaignName })}>
-              Reload from DB
-            </button>
-
-            <button disabled={loading} onClick={() => startEvergreen('test')}>
-              Test webhook
-            </button>
-
-            <button disabled={loading} onClick={() => startEvergreen('start')}>
-              Start evergreen
-            </button>
-
-            <button disabled={loading} onClick={() => callApi('/api/admin/campaign/evergreen-status', { campaign_id: campaignId || undefined, name: normalizedCampaignName, status: 'stopped' })}>
-              Stop evergreen
-            </button>
+            <button disabled={loading} onClick={saveCampaign}>Save campaign</button>
+            <button disabled={loading} onClick={saveDynamicConfig}>Save dynamic config</button>
+            <button disabled={loading} onClick={() => loadFromDb(campaignId)}>Reload from DB</button>
+            <button disabled={loading} onClick={() => startEvergreen('test')}>Test webhook</button>
+            <button disabled={loading} onClick={() => startEvergreen('start')}>Start evergreen</button>
+            <button disabled={loading} onClick={() => callApi('/api/admin/campaign/evergreen-status', { campaign_id: campaignId, status: 'stopped' })}>Stop evergreen</button>
           </div>
         </div>
 
@@ -400,17 +343,8 @@ export default function CampaignConfigPanel({ initialCampaignId = '', initialCam
               <li key={s} style={s === currentStatus ? { fontWeight: 700, color: '#0a7d22' } : undefined}>{s}</li>
             ))}
           </ul>
-          <div style={{ marginTop: 12, fontSize: 11, color: '#555' }}>
-            Campaign ID: <b>{campaignId || '—'}</b>
-          </div>
-          <div style={{ marginTop: 8, fontSize: 11, color: duplicateCount > 1 ? '#b00020' : '#555' }}>
-            Matching rows by name: <b>{duplicateCount || 0}</b>
-          </div>
-          {duplicateCount > 1 ? (
-            <div style={{ marginTop: 8, fontSize: 11, color: '#b00020' }}>
-              Uwaga: są duplikaty tej kampanii po name. Panel zapisuje teraz po konkretnym <b>campaign_id</b>.
-            </div>
-          ) : null}
+          <div style={{ marginTop: 12, fontSize: 11, color: '#555' }}>Campaign ID: <b>{campaignId || '—'}</b></div>
+          <div style={{ marginTop: 8, fontSize: 11, color: duplicateCount > 1 ? '#b00020' : '#555' }}>Matching rows by name: <b>{duplicateCount || 0}</b></div>
           <details style={{ marginTop: 10 }}>
             <summary style={{ cursor: 'pointer' }}>DB snapshot</summary>
             <pre style={{ marginTop: 8, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 11, background: '#f8f8f8', padding: 8, borderRadius: 6 }}>
