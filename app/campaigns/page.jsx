@@ -24,7 +24,8 @@ function normalizeSearchParams(searchParams) {
 
 export default async function CampaignsPage({ searchParams }) {
   const sql = getSql();
-  const filters = normalizeSearchParams(searchParams);
+  const resolvedSearchParams = await searchParams;
+  const filters = normalizeSearchParams(resolvedSearchParams);
   const offset = (filters.page - 1) * PAGE_SIZE;
 
   const initialCampaignRows = await sql`

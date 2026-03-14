@@ -267,7 +267,8 @@ async function getCount(sql, filters, hasAssignments) {
 
 export default async function WarmLeadsPage({ searchParams }) {
   const sql = getSql();
-  const filters = normalize(searchParams);
+  const resolvedSearchParams = await searchParams;
+  const filters = normalize(resolvedSearchParams);
   const hasAssignments = await detectAssignmentTables(sql);
   const [summary, rows, countRow] = await Promise.all([
     getSummary(sql, hasAssignments),

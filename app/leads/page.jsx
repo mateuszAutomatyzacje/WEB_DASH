@@ -25,7 +25,8 @@ function normalize(searchParams) {
 
 export default async function LeadsPage({ searchParams }) {
   const sql = getSql();
-  const filters = normalize(searchParams);
+  const resolvedSearchParams = await searchParams;
+  const filters = normalize(resolvedSearchParams);
   const offset = (filters.page - 1) * PAGE_SIZE;
 
   const queryFilter = filters.query ? `%${filters.query}%` : null;

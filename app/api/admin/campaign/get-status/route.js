@@ -1,12 +1,13 @@
 import { getSql } from '@/lib/db.js';
+import { DEFAULT_EVERGREEN_NAME, normalizeStoredCampaignSettings } from '@/lib/evergreen-config.js';
 
-const DEFAULT_NAME = 'OUTSOURCING_IT_EVERGREEM';
+export const dynamic = 'force-dynamic';
 
 export async function GET(req) {
   try {
     const url = new URL(req.url);
     const campaignId = (url.searchParams.get('campaignId') || '').trim();
-    const name = (url.searchParams.get('name') || DEFAULT_NAME).trim();
+    const name = (url.searchParams.get('name') || DEFAULT_EVERGREEN_NAME).trim();
 
     const sql = getSql();
 
@@ -30,7 +31,10 @@ export async function GET(req) {
 
     if (!rows.length) return Response.json({ ok: false, found: false, name, campaignId: campaignId || null });
 
-    const campaign = rows[0];
+    const campaign = {
+      ...rows[0],
+      settings: normalizeStoredCampaignSettings(rows[0]?.settings),
+    };
     const duplicates = await sql`
       select count(*)::int as total
       from campaigns

@@ -17,7 +17,8 @@ function normalize(searchParams) {
 
 export default async function QueuePage({ searchParams }) {
   const sql = getSql();
-  const filters = normalize(searchParams);
+  const resolvedSearchParams = await searchParams;
+  const filters = normalize(resolvedSearchParams);
   const campaignFilter = filters.campaign ? `%${filters.campaign}%` : null;
   const stateFilter = filters.state === 'all' ? null : filters.state;
 

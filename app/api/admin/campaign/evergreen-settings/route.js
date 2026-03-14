@@ -1,26 +1,10 @@
 import { getSql } from '@/lib/db.js';
-
-const DEFAULT_NAME = 'OUTSOURCING_IT_EVERGREEM';
-
-function normalize(body = {}, stored = {}) {
-  const webhookUrl = String(body?.webhookUrl ?? stored?.webhook_url ?? 'https://n8n-production-c340.up.railway.app/webhook-test/efxblr-test-trigger').trim();
-  return {
-    webhook_url: webhookUrl,
-    base_url: String(body?.baseUrl ?? stored?.base_url ?? 'https://justjoin.it/job-offers').trim(),
-    max_pages: Math.max(1, Number(body?.maxPages ?? stored?.max_pages ?? 3)),
-    budget_max_requests: Math.max(1, Number(body?.budgetMaxRequests ?? stored?.budget_max_requests ?? 120)),
-    crawl4ai_endpoint: String(body?.crawl4aiEndpoint ?? stored?.crawl4ai_endpoint ?? 'https://crawl4ai-production-0915.up.railway.app/crawl').trim(),
-    rate_seconds: Math.max(0, Number(body?.rateSeconds ?? stored?.rate_seconds ?? 1)),
-    job_title: String(body?.jobTitle ?? stored?.job_title ?? ''),
-    city: String(body?.city ?? stored?.city ?? 'Poland'),
-    experience_level: String(body?.experienceLevel ?? stored?.experience_level ?? ''),
-    test_mode: Boolean(typeof body?.testMode === 'undefined' ? stored?.test_mode : body?.testMode),
-    apollo_api_key: String(body?.apolloApiKey ?? stored?.apollo_api_key ?? ''),
-    apollo_max_people_per_company: Math.max(1, Number(body?.apolloMaxPeoplePerCompany ?? stored?.apollo_max_people_per_company ?? 3)),
-    run_id: String(body?.runId ?? stored?.run_id ?? ''),
-    crawl4ai_health_path: String(body?.crawl4aiHealthPath ?? stored?.crawl4ai_health_path ?? '/health').trim(),
-  };
-}
+import {
+  DEFAULT_EVERGREEN_NAME,
+  getCampaignRunnerConfig,
+  normalizeEvergreenConfig,
+  toStoredEvergreenRunner,
+} from '@/lib/evergreen-config.js';
 
 async function resolveCampaign(sql, body = {}) {
   const campaignId = String(body?.campaign_id || body?.campaignId || '').trim();
@@ -34,7 +18,7 @@ async function resolveCampaign(sql, body = {}) {
     return rows[0] || null;
   }
 
-  const name = String(body?.campaignName || DEFAULT_NAME).trim() || DEFAULT_NAME;
+  const name = String(body?.campaignName || DEFAULT_EVERGREEN_NAME).trim() || DEFAULT_EVERGREEN_NAME;
   const rows = await sql`
     select id, name, status, description, settings
     from campaigns
@@ -51,13 +35,11 @@ export async function PUT(req) {
     const sql = getSql();
 
     const campaign = await resolveCampaign(sql, body);
-    if (!campaign) throw new Error(`Campaign not found`);
+    if (!campaign) throw new Error('Campaign not found');
 
-    const storedRunner = campaign?.settings?.evergreen_runner || {};
-    const config = normalize(body, storedRunner);
-    const sendIntervalMin = [5, 10, 15].includes(Number(body?.sendIntervalMin))
-      ? Number(body.sendIntervalMin)
-      : Number(campaign?.settings?.send_interval_min || 5);
+    const config = normalizeEvergreenConfig(body, getCampaignRunnerConfig(campaign));
+    const storedRunner = toStoredEvergreenRunner(config);
+    const sendIntervalMin = config.sendIntervalMin;
 
     const rows = await sql`
       update campaigns c
@@ -70,7 +52,7 @@ export async function PUT(req) {
                   else '{}'::jsonb
                 end,
                 '{evergreen_runner}',
-                ${JSON.stringify(config)}::jsonb,
+                ${sql.json(storedRunner)}::jsonb,
                 true
               ),
               '{mode}',
@@ -86,12 +68,17 @@ export async function PUT(req) {
       returning c.id, c.name, c.description, c.status::text as status, c.settings, c.updated_at
     `;
 
+    const updatedCampaign = rows[0];
+    const updatedConfig = getCampaignRunnerConfig(updatedCampaign);
+
     return Response.json({
       ok: true,
-      campaign: rows[0],
-      campaign_id: rows[0].id,
-      evergreen_runner: rows[0].settings?.evergreen_runner || config,
-      send_interval_min: rows[0].settings?.send_interval_min ?? sendIntervalMin,
+      campaign: updatedCampaign,
+      campaign_id: updatedCampaign.id,
+      settings: updatedCampaign.settings,
+      evergreen_runner: updatedCampaign.settings?.evergreen_runner || storedRunner,
+      send_interval_min: updatedCampaign.settings?.send_interval_min ?? sendIntervalMin,
+      runner_config: updatedConfig,
     });
   } catch (e) {
     return new Response(String(e?.message || e), { status: 400 });
