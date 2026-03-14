@@ -89,7 +89,7 @@ function fromCampaign(campaign) {
   };
 }
 
-export default function CampaignConfigPanel() {
+export default function CampaignConfigPanel({ initialCampaignId = '', initialCampaignName = DEFAULT_NAME }) {
   const [campaignId, setCampaignId] = useState('');
   const [duplicateCount, setDuplicateCount] = useState(0);
   const [name, setName] = useState(DEFAULT_NAME);
@@ -99,6 +99,7 @@ export default function CampaignConfigPanel() {
   const [msg, setMsg] = useState('');
   const [loading, setLoading] = useState(false);
   const [currentStatus, setCurrentStatus] = useState('unknown');
+  const [dbSnapshot, setDbSnapshot] = useState(null);
   const lastLoadedNameRef = useRef('');
 
   const normalizedCampaignName = useMemo(() => String(name || DEFAULT_NAME).trim() || DEFAULT_NAME, [name]);
@@ -118,6 +119,7 @@ export default function CampaignConfigPanel() {
       if (!data?.found || !data?.campaign) {
         setCampaignId('');
         setDuplicateCount(0);
+        setDbSnapshot(null);
         setCurrentStatus('not_created');
         setDescription(DEFAULT_DESCRIPTION);
         setConfig(DEFAULT_CONFIG);
@@ -133,6 +135,15 @@ export default function CampaignConfigPanel() {
       setDescription(loaded.description);
       setConfig(loaded.config);
       setSettingsText(loaded.settingsText);
+      setDbSnapshot({
+        id: campaign.id,
+        name: campaign.name,
+        description: campaign.description,
+        status: campaign.status,
+        updated_at: campaign.updated_at,
+        send_interval_min: campaign?.settings?.send_interval_min,
+        evergreen_runner: campaign?.settings?.evergreen_runner || null,
+      });
       lastLoadedNameRef.current = campaign.name || targetName || DEFAULT_NAME;
       return true;
     } catch {
@@ -148,13 +159,17 @@ export default function CampaignConfigPanel() {
   useEffect(() => {
     const boot = async () => {
       const storedName = typeof window !== 'undefined' ? (window.localStorage.getItem(LAST_CAMPAIGN_NAME_KEY) || '').trim() : '';
-      const initialName = storedName || DEFAULT_NAME;
-      setName(initialName);
-      lastLoadedNameRef.current = initialName;
-      await loadFromDb({ name: initialName });
+      const preferredName = storedName || initialCampaignName || DEFAULT_NAME;
+      setName(preferredName);
+      lastLoadedNameRef.current = preferredName;
+      if (initialCampaignId) {
+        const ok = await loadFromDb({ id: initialCampaignId, name: preferredName });
+        if (ok) return;
+      }
+      await loadFromDb({ name: preferredName });
     };
     boot();
-  }, []);
+  }, [initialCampaignId, initialCampaignName]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -396,6 +411,12 @@ export default function CampaignConfigPanel() {
               Uwaga: są duplikaty tej kampanii po name. Panel zapisuje teraz po konkretnym <b>campaign_id</b>.
             </div>
           ) : null}
+          <details style={{ marginTop: 10 }}>
+            <summary style={{ cursor: 'pointer' }}>DB snapshot</summary>
+            <pre style={{ marginTop: 8, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 11, background: '#f8f8f8', padding: 8, borderRadius: 6 }}>
+              {JSON.stringify(dbSnapshot, null, 2)}
+            </pre>
+          </details>
         </aside>
       </div>
 

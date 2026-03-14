@@ -27,6 +27,15 @@ export default async function CampaignsPage({ searchParams }) {
   const filters = normalizeSearchParams(searchParams);
   const offset = (filters.page - 1) * PAGE_SIZE;
 
+  const initialCampaignRows = await sql`
+    select id, name
+    from public.campaigns
+    where name = 'OUTSOURCING_IT_EVERGREEM'
+    order by created_at desc
+    limit 1
+  `;
+  const initialCampaign = initialCampaignRows[0] || null;
+
   const statusFilter = filters.status === 'all' ? null : filters.status;
   const queryFilter = filters.query ? `%${filters.query}%` : null;
   const riskFilter = filters.risk === 'all' ? null : filters.risk;
@@ -139,7 +148,7 @@ export default async function CampaignsPage({ searchParams }) {
 
   return (
     <AppShell title="Campaigns" subtitle="Widok kampanii z filtrowaniem po statusie, ryzyku i wyszukiwaniem po nazwie — plus szybkie klonowanie kampanii.">
-      <CampaignConfigPanel />
+      <CampaignConfigPanel initialCampaignId={initialCampaign?.id || ''} initialCampaignName={initialCampaign?.name || 'OUTSOURCING_IT_EVERGREEM'} />
 
       <FilterForm>
         <FiltersGrid>
