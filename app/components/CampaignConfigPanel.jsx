@@ -10,7 +10,7 @@ import {
   normalizeEvergreenConfig,
 } from '@/lib/evergreen-config.js';
 
-const STATUSES = ['draft', 'ready', 'running', 'paused', 'stopped', 'archived'];
+const STATUSES = ['draft', 'ready', 'running', 'paused', 'stopped', 'archived', 'test'];
 const DEFAULT_DESCRIPTION = 'Kampania ciagla dla nowych leadow';
 
 const FIELD_DEFS = [
@@ -56,6 +56,7 @@ export default function CampaignConfigPanel({ initialCampaignId = '', initialCam
   const [msg, setMsg] = useState('');
   const [loading, setLoading] = useState(false);
   const [currentStatus, setCurrentStatus] = useState('unknown');
+  const [displayStatus, setDisplayStatus] = useState('unknown');
   const [dbSnapshot, setDbSnapshot] = useState(null);
 
   const normalizedCampaignName = useMemo(
@@ -69,13 +70,14 @@ export default function CampaignConfigPanel({ initialCampaignId = '', initialCam
     return res.json();
   }
 
-  function applyCampaignState(campaign, { duplicateCount: nextDuplicateCount } = {}) {
+  function applyCampaignState(campaign, { duplicateCount: nextDuplicateCount, displayStatus: nextDisplayStatus } = {}) {
     if (!campaign) return false;
     const loaded = fromCampaign(campaign);
     setCampaignId(String(campaign.id || ''));
     setName(campaign.name || DEFAULT_EVERGREEN_NAME);
     if (typeof nextDuplicateCount === 'number') setDuplicateCount(nextDuplicateCount);
     setCurrentStatus(campaign.status || 'unknown');
+    setDisplayStatus(nextDisplayStatus || campaign.status || 'unknown');
     setDescription(loaded.description);
     setConfig(loaded.config);
     setSettingsText(loaded.settingsText);
@@ -129,7 +131,7 @@ export default function CampaignConfigPanel({ initialCampaignId = '', initialCam
       const data = parseApiResponse(text);
       if (!res.ok) throw new Error(data?.error || data?.message || text || `HTTP ${res.status}`);
       if (data?.campaign) {
-        applyCampaignState(data.campaign, { duplicateCount });
+        applyCampaignState(data.campaign, { duplicateCount, displayStatus: data?.display_status });
       } else if (reload) {
         await loadFromDb(String(data?.id || data?.campaign_id || body?.campaign_id || campaignId || ''));
       }
@@ -214,7 +216,7 @@ export default function CampaignConfigPanel({ initialCampaignId = '', initialCam
       const text = await res.text();
       const data = parseApiResponse(text);
       if (!res.ok) throw new Error(data?.error || data?.message || text || `HTTP ${res.status}`);
-      applyCampaignState(data?.campaign, { duplicateCount });
+      applyCampaignState(data?.campaign, { duplicateCount, displayStatus: data?.display_status });
       router.refresh();
       setMsg(mode === 'test' ? 'OK: test webhook sent' : 'OK: campaign started with current saved config');
     } catch (e) {
@@ -226,12 +228,15 @@ export default function CampaignConfigPanel({ initialCampaignId = '', initialCam
 
   const fieldRow = { display: 'grid', gridTemplateColumns: '220px 1fr', gap: 10, alignItems: 'center' };
   const input = { width: '100%' };
-  const badgeStyle = currentStatus === 'running'
+  const effectiveStatus = displayStatus || currentStatus;
+  const badgeStyle = effectiveStatus === 'running'
     ? { background: '#0a7d22', color: '#fff' }
-    : currentStatus === 'paused'
+    : effectiveStatus === 'paused'
       ? { background: '#8a6d00', color: '#fff' }
-      : currentStatus === 'stopped'
+      : effectiveStatus === 'stopped'
         ? { background: '#a00020', color: '#fff' }
+        : effectiveStatus === 'test'
+          ? { background: '#1d4ed8', color: '#fff' }
         : { background: '#2d2d2d', color: '#fff' };
 
   return (
@@ -313,12 +318,17 @@ export default function CampaignConfigPanel({ initialCampaignId = '', initialCam
           <b>Statusy kampanii</b>
           <div style={{ marginTop: 8, marginBottom: 8 }}>
             <span style={{ display: 'inline-block', borderRadius: 999, padding: '3px 10px', fontSize: 12, ...badgeStyle }}>
-              current: {currentStatus}
+              current: {effectiveStatus}
             </span>
           </div>
+          {effectiveStatus !== currentStatus ? (
+            <div style={{ marginBottom: 8, fontSize: 11, color: '#555' }}>
+              Campaign DB status: <b>{currentStatus}</b>
+            </div>
+          ) : null}
           <ul style={{ margin: '8px 0 0 16px', padding: 0, lineHeight: 1.7 }}>
             {STATUSES.map((s) => (
-              <li key={s} style={s === currentStatus ? { fontWeight: 700, color: '#0a7d22' } : undefined}>{s}</li>
+              <li key={s} style={s === effectiveStatus ? { fontWeight: 700, color: s === 'test' ? '#1d4ed8' : '#0a7d22' } : undefined}>{s}</li>
             ))}
           </ul>
           <div style={{ marginTop: 12, fontSize: 11, color: '#555' }}>Campaign ID: <b>{campaignId || '-'}</b></div>

@@ -35,6 +35,7 @@ export async function POST(req) {
   try {
     const body = await req.json().catch(() => ({}));
     const mode = String(body?.mode || 'start').trim();
+    const isTestMode = mode === 'test';
     const sql = getSql();
 
     const campaign = await resolveCampaign(sql, body);
@@ -48,7 +49,7 @@ export async function POST(req) {
 
     const rows = await sql`
       update campaigns
-      set status = 'running',
+      set status = case when ${isTestMode} then status else 'running'::campaign_status end,
           settings = jsonb_set(
             jsonb_set(
               jsonb_set(
@@ -103,7 +104,8 @@ export async function POST(req) {
       mode,
       campaign_id: updatedCampaign.id,
       campaign_name: updatedCampaign.name,
-      status: 'running',
+      status: updatedCampaign.status,
+      display_status: isTestMode ? 'test' : updatedCampaign.status,
       campaign: updatedCampaign,
       settings: updatedCampaign.settings,
       webhook_url: finalConfig.webhookUrl,
