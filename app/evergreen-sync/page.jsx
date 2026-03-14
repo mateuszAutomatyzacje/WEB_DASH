@@ -170,6 +170,7 @@ export default async function EvergreenSyncPage() {
             apolloMaxPeoplePerCompany: settings?.evergreen_runner?.apollo_max_people_per_company,
             runId: settings?.evergreen_runner?.run_id,
             crawl4aiHealthPath: settings?.evergreen_runner?.crawl4ai_health_path,
+            sendIntervalMin: Number(settings?.send_interval_min || 5),
           }}
         />
       </section>

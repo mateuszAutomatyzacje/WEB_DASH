@@ -18,11 +18,57 @@ const DEFAULTS = {
   runId: '',
   crawl4aiHealthPath: '/health',
   webhookUrl: 'https://n8n-production-c340.up.railway.app/webhook-test/efxblr-test-trigger',
+  sendIntervalMin: 5,
 };
 
 function toNum(value, fallback) {
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
+}
+
+function normalizeCfg(raw = {}) {
+  return {
+    campaignName: String(raw.campaignName || DEFAULTS.campaignName).trim(),
+    baseUrl: String(raw.baseUrl ?? DEFAULTS.baseUrl).trim(),
+    maxPages: toNum(raw.maxPages, DEFAULTS.maxPages),
+    budgetMaxRequests: toNum(raw.budgetMaxRequests, DEFAULTS.budgetMaxRequests),
+    crawl4aiEndpoint: String(raw.crawl4aiEndpoint ?? DEFAULTS.crawl4aiEndpoint).trim(),
+    rateSeconds: toNum(raw.rateSeconds, DEFAULTS.rateSeconds),
+    jobTitle: String(raw.jobTitle ?? DEFAULTS.jobTitle),
+    city: String(raw.city ?? DEFAULTS.city),
+    experienceLevel: String(raw.experienceLevel ?? DEFAULTS.experienceLevel),
+    testMode: Boolean(raw.testMode),
+    apolloApiKey: String(raw.apolloApiKey ?? DEFAULTS.apolloApiKey),
+    apolloMaxPeoplePerCompany: toNum(raw.apolloMaxPeoplePerCompany, DEFAULTS.apolloMaxPeoplePerCompany),
+    runId: String(raw.runId ?? DEFAULTS.runId),
+    crawl4aiHealthPath: String(raw.crawl4aiHealthPath ?? DEFAULTS.crawl4aiHealthPath).trim(),
+    webhookUrl: String(raw.webhookUrl ?? DEFAULTS.webhookUrl).trim(),
+    sendIntervalMin: [5, 10, 15].includes(Number(raw.sendIntervalMin)) ? Number(raw.sendIntervalMin) : DEFAULTS.sendIntervalMin,
+  };
+}
+
+function fromSaved(data = {}, fallback = {}) {
+  const runner = data?.evergreen_runner || data?.campaign?.settings?.evergreen_runner || {};
+  const sendIntervalMin = data?.send_interval_min ?? data?.campaign?.settings?.send_interval_min ?? fallback?.sendIntervalMin;
+  return normalizeCfg({
+    ...fallback,
+    campaignName: data?.campaign?.name ?? fallback?.campaignName,
+    webhookUrl: runner?.webhook_url,
+    baseUrl: runner?.base_url,
+    maxPages: runner?.max_pages,
+    budgetMaxRequests: runner?.budget_max_requests,
+    crawl4aiEndpoint: runner?.crawl4ai_endpoint,
+    rateSeconds: runner?.rate_seconds,
+    jobTitle: runner?.job_title,
+    city: runner?.city,
+    experienceLevel: runner?.experience_level,
+    testMode: runner?.test_mode,
+    apolloApiKey: runner?.apollo_api_key,
+    apolloMaxPeoplePerCompany: runner?.apollo_max_people_per_company,
+    runId: runner?.run_id,
+    crawl4aiHealthPath: runner?.crawl4ai_health_path,
+    sendIntervalMin,
+  });
 }
 
 async function callJson(url, method, body) {
@@ -42,7 +88,7 @@ export default function EvergreenCampaignSettingsPanel({ initialName, initialCon
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState('');
   const [result, setResult] = useState(null);
-  const [cfg, setCfg] = useState({ ...DEFAULTS, campaignName: initialName || DEFAULTS.campaignName, ...(initialConfig || {}) });
+  const [cfg, setCfg] = useState(normalizeCfg({ ...DEFAULTS, campaignName: initialName || DEFAULTS.campaignName, ...(initialConfig || {}) }));
 
   const payload = useMemo(() => ({
     campaignName: String(cfg.campaignName || DEFAULTS.campaignName).trim(),
@@ -60,6 +106,7 @@ export default function EvergreenCampaignSettingsPanel({ initialName, initialCon
     runId: String(cfg.runId || '').trim(),
     crawl4aiHealthPath: String(cfg.crawl4aiHealthPath || '').trim(),
     webhookUrl: String(cfg.webhookUrl || '').trim(),
+    sendIntervalMin: [5, 10, 15].includes(Number(cfg.sendIntervalMin)) ? Number(cfg.sendIntervalMin) : DEFAULTS.sendIntervalMin,
   }), [cfg]);
 
   async function saveOnly() {
@@ -67,6 +114,8 @@ export default function EvergreenCampaignSettingsPanel({ initialName, initialCon
     setMsg('');
     try {
       const data = await callJson('/api/admin/campaign/evergreen-settings', 'PUT', payload);
+      const saved = fromSaved(data, cfg);
+      setCfg(saved);
       setResult(data);
       setMsg('SETTINGS SAVED');
     } catch (e) {
@@ -80,7 +129,10 @@ export default function EvergreenCampaignSettingsPanel({ initialName, initialCon
     setLoading(true);
     setMsg('');
     try {
-      const data = await callJson('/api/admin/campaign/start-evergreen', 'POST', { ...payload, mode });
+      const savedData = await callJson('/api/admin/campaign/evergreen-settings', 'PUT', payload);
+      const saved = fromSaved(savedData, cfg);
+      setCfg(saved);
+      const data = await callJson('/api/admin/campaign/start-evergreen', 'POST', { ...saved, mode });
       setResult(data);
       setMsg(mode === 'test' ? 'TEST WEBHOOK SENT' : 'EVERGREEN STARTED + WEBHOOK SENT');
     } catch (e) {
@@ -111,47 +163,55 @@ export default function EvergreenCampaignSettingsPanel({ initialName, initialCon
 
       <div style={row}>
         <div style={label}>campaignName</div>
-        <input style={input} value={cfg.campaignName} onChange={(e) => setCfg((c) => ({ ...c, campaignName: e.target.value }))} />
+        <input style={input} value={cfg.campaignName} onChange={(e) => setCfg((c) => normalizeCfg({ ...c, campaignName: e.target.value }))} />
+      </div>
+      <div style={row}>
+        <div style={label}>sendIntervalMin</div>
+        <select style={input} value={cfg.sendIntervalMin} onChange={(e) => setCfg((c) => normalizeCfg({ ...c, sendIntervalMin: Number(e.target.value) }))}>
+          <option value={5}>5 min</option>
+          <option value={10}>10 min</option>
+          <option value={15}>15 min</option>
+        </select>
       </div>
       <div style={row}>
         <div style={label}>webhookUrl</div>
-        <input style={input} value={cfg.webhookUrl} onChange={(e) => setCfg((c) => ({ ...c, webhookUrl: e.target.value }))} />
+        <input style={input} value={cfg.webhookUrl} onChange={(e) => setCfg((c) => normalizeCfg({ ...c, webhookUrl: e.target.value }))} />
       </div>
       <div style={row}>
         <div style={label}>baseUrl</div>
-        <input style={input} value={cfg.baseUrl} onChange={(e) => setCfg((c) => ({ ...c, baseUrl: e.target.value }))} />
+        <input style={input} value={cfg.baseUrl} onChange={(e) => setCfg((c) => normalizeCfg({ ...c, baseUrl: e.target.value }))} />
       </div>
       <div style={row}>
         <div style={label}>maxPages</div>
-        <input style={input} type="number" min={1} value={cfg.maxPages} onChange={(e) => setCfg((c) => ({ ...c, maxPages: e.target.value }))} />
+        <input style={input} type="number" min={1} value={cfg.maxPages} onChange={(e) => setCfg((c) => normalizeCfg({ ...c, maxPages: e.target.value }))} />
       </div>
       <div style={row}>
         <div style={label}>budgetMaxRequests</div>
-        <input style={input} type="number" min={1} value={cfg.budgetMaxRequests} onChange={(e) => setCfg((c) => ({ ...c, budgetMaxRequests: e.target.value }))} />
+        <input style={input} type="number" min={1} value={cfg.budgetMaxRequests} onChange={(e) => setCfg((c) => normalizeCfg({ ...c, budgetMaxRequests: e.target.value }))} />
       </div>
       <div style={row}>
         <div style={label}>crawl4aiEndpoint</div>
-        <input style={input} value={cfg.crawl4aiEndpoint} onChange={(e) => setCfg((c) => ({ ...c, crawl4aiEndpoint: e.target.value }))} />
+        <input style={input} value={cfg.crawl4aiEndpoint} onChange={(e) => setCfg((c) => normalizeCfg({ ...c, crawl4aiEndpoint: e.target.value }))} />
       </div>
       <div style={row}>
         <div style={label}>crawl4aiHealthPath</div>
-        <input style={input} value={cfg.crawl4aiHealthPath} onChange={(e) => setCfg((c) => ({ ...c, crawl4aiHealthPath: e.target.value }))} />
+        <input style={input} value={cfg.crawl4aiHealthPath} onChange={(e) => setCfg((c) => normalizeCfg({ ...c, crawl4aiHealthPath: e.target.value }))} />
       </div>
       <div style={row}>
         <div style={label}>rateSeconds</div>
-        <input style={input} type="number" step="0.1" min={0} value={cfg.rateSeconds} onChange={(e) => setCfg((c) => ({ ...c, rateSeconds: e.target.value }))} />
+        <input style={input} type="number" step="0.1" min={0} value={cfg.rateSeconds} onChange={(e) => setCfg((c) => normalizeCfg({ ...c, rateSeconds: e.target.value }))} />
       </div>
       <div style={row}>
         <div style={label}>jobTitle</div>
-        <input style={input} value={cfg.jobTitle} onChange={(e) => setCfg((c) => ({ ...c, jobTitle: e.target.value }))} />
+        <input style={input} value={cfg.jobTitle} onChange={(e) => setCfg((c) => normalizeCfg({ ...c, jobTitle: e.target.value }))} />
       </div>
       <div style={row}>
         <div style={label}>city</div>
-        <input style={input} value={cfg.city} onChange={(e) => setCfg((c) => ({ ...c, city: e.target.value }))} />
+        <input style={input} value={cfg.city} onChange={(e) => setCfg((c) => normalizeCfg({ ...c, city: e.target.value }))} />
       </div>
       <div style={row}>
         <div style={label}>experienceLevel</div>
-        <select style={input} value={cfg.experienceLevel} onChange={(e) => setCfg((c) => ({ ...c, experienceLevel: e.target.value }))}>
+        <select style={input} value={cfg.experienceLevel} onChange={(e) => setCfg((c) => normalizeCfg({ ...c, experienceLevel: e.target.value }))}>
           <option value="">Any</option>
           <option value="junior">junior</option>
           <option value="mid">mid</option>
@@ -161,21 +221,21 @@ export default function EvergreenCampaignSettingsPanel({ initialName, initialCon
       <div style={row}>
         <div style={label}>testMode</div>
         <label style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <input type="checkbox" checked={Boolean(cfg.testMode)} onChange={(e) => setCfg((c) => ({ ...c, testMode: e.target.checked }))} />
+          <input type="checkbox" checked={Boolean(cfg.testMode)} onChange={(e) => setCfg((c) => normalizeCfg({ ...c, testMode: e.target.checked }))} />
           <span style={{ fontSize: 13, color: '#94a3b8' }}>Do payloadu idzie jako boolean</span>
         </label>
       </div>
       <div style={row}>
         <div style={label}>apolloApiKey</div>
-        <input style={input} type="password" value={cfg.apolloApiKey} onChange={(e) => setCfg((c) => ({ ...c, apolloApiKey: e.target.value }))} placeholder="opcjonalnie" />
+        <input style={input} type="password" value={cfg.apolloApiKey} onChange={(e) => setCfg((c) => normalizeCfg({ ...c, apolloApiKey: e.target.value }))} placeholder="opcjonalnie" />
       </div>
       <div style={row}>
         <div style={label}>apolloMaxPeoplePerCompany</div>
-        <input style={input} type="number" min={1} value={cfg.apolloMaxPeoplePerCompany} onChange={(e) => setCfg((c) => ({ ...c, apolloMaxPeoplePerCompany: e.target.value }))} />
+        <input style={input} type="number" min={1} value={cfg.apolloMaxPeoplePerCompany} onChange={(e) => setCfg((c) => normalizeCfg({ ...c, apolloMaxPeoplePerCompany: e.target.value }))} />
       </div>
       <div style={row}>
         <div style={label}>runId</div>
-        <input style={input} value={cfg.runId} onChange={(e) => setCfg((c) => ({ ...c, runId: e.target.value }))} placeholder="opcjonalnie" />
+        <input style={input} value={cfg.runId} onChange={(e) => setCfg((c) => normalizeCfg({ ...c, runId: e.target.value }))} placeholder="opcjonalnie" />
       </div>
 
       <details style={{ marginTop: 14 }}>
