@@ -43,12 +43,20 @@ export default async function QueuePage({ searchParams }) {
       c.name as campaign_name,
       c.id as campaign_id,
       l.company_name,
-      lc.email,
+      la.to_email::text as email,
       lc.first_name,
       lc.last_name
     from public.campaign_leads cl
     join public.campaigns c on c.id = cl.campaign_id
     join public.leads l on l.id = cl.lead_id
+    left join lateral (
+      select distinct on (ma.lead_id, ma.lead_contact_id)
+        ma.to_email
+      from public.message_attempts ma
+      where ma.lead_id = cl.lead_id
+        and ma.lead_contact_id = cl.active_contact_id
+      order by ma.lead_id, ma.lead_contact_id, ma.created_at desc
+    ) la on true
     left join public.lead_contacts lc on lc.id = cl.active_contact_id
     where cl.next_run_at is not null
       and cl.state in ('in_campaign','new','enriched')

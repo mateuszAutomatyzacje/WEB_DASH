@@ -65,7 +65,7 @@ export default async function CampaignDetailPage({ params }) {
       l.id as lead_id,
       l.company_name,
       lc.id as lead_contact_id,
-      lc.email,
+      coalesce(la.to_email::text, lc.email::text) as email,
       lc.first_name,
       lc.last_name,
       lc.title,

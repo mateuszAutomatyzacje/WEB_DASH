@@ -41,6 +41,7 @@ export async function POST(req) {
         campaignName: campaign.name,
         dryRun: false,
         persistDelivery: false,
+        includeNotDue: true,
         limit,
         performSync: runtime.auto_sync_enabled,
         source: 'webdash_test_send',

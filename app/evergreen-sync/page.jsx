@@ -70,6 +70,14 @@ export default async function EvergreenSyncPage() {
   `;
 
   const recent = await sql`
+    with latest_attempt as (
+      select distinct on (ma.lead_id, ma.lead_contact_id)
+        ma.lead_id,
+        ma.lead_contact_id,
+        ma.to_email
+      from public.message_attempts ma
+      order by ma.lead_id, ma.lead_contact_id, ma.created_at desc
+    )
     select
       cl.id,
       cl.entered_at,
@@ -78,12 +86,15 @@ export default async function EvergreenSyncPage() {
       cl.contact_attempt_no,
       cl.next_run_at,
       l.company_name,
-      lc.email,
+      coalesce(la.to_email::text, lc.email::text) as email,
       lc.first_name,
       lc.last_name
     from public.campaign_leads cl
     join public.leads l on l.id = cl.lead_id
     left join public.lead_contacts lc on lc.id = cl.active_contact_id
+    left join latest_attempt la
+      on la.lead_id = cl.lead_id
+     and la.lead_contact_id = cl.active_contact_id
     where cl.campaign_id = ${campaign.id}::uuid
     order by greatest(cl.updated_at, cl.entered_at) desc
     limit 200

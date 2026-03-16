@@ -48,6 +48,7 @@ export async function GET(req) {
           ma.id,
           ma.lead_id,
           ma.lead_contact_id,
+          ma.to_email,
           ma.subject,
           ma.sent_at,
           ma.created_at
@@ -75,7 +76,7 @@ export async function GET(req) {
         lc.id as lead_contact_id,
         lc.first_name,
         lc.last_name,
-        lc.email,
+        coalesce(la.to_email::text, lc.email::text) as email,
         la.id as message_attempt_id,
         la.subject,
         la.sent_at,
