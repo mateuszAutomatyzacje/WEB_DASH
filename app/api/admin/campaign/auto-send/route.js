@@ -39,7 +39,8 @@ export async function POST(req) {
       result = await runCampaignGuard(sql, {
         campaignId: campaign.id,
         campaignName: campaign.name,
-        dryRun: true,
+        dryRun: false,
+        persistDelivery: false,
         limit,
         performSync: runtime.auto_sync_enabled,
         source: 'webdash_test_send',
@@ -51,7 +52,10 @@ export async function POST(req) {
         last_test_send_at: nowIso,
         last_test_send_result: {
           queued: result?.queued ?? 0,
+          sent: result?.sent ?? 0,
+          failed: result?.failed ?? 0,
           previewed: result?.outbox_preview?.length ?? 0,
+          webhook_only: true,
           limit,
           replied_stopped: result?.replied?.stopped ?? 0,
           timestamp: nowIso,

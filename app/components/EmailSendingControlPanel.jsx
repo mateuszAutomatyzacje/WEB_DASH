@@ -58,7 +58,7 @@ export default function EmailSendingControlPanel({ campaignName, campaignId, ini
           action,
           campaign_id: campaignId,
           campaign_name: campaignName,
-          limit: action === 'test' ? 5 : 25,
+          limit: action === 'test' ? 1 : 25,
         }),
       });
       const text = await res.text();
@@ -69,7 +69,7 @@ export default function EmailSendingControlPanel({ campaignName, campaignId, ini
       setResult(data);
       if (action === 'start') setMsg('AUTO EMAIL SENDING RUNNING');
       if (action === 'stop') setMsg('AUTO EMAIL SENDING PAUSED');
-      if (action === 'test') setMsg(`PREVIEW OK: queued=${data?.queued ?? 0} (no webhook call)`);
+      if (action === 'test') setMsg(`TEST WEBHOOK OK: sent=${data?.sent ?? 0} failed=${data?.failed ?? 0}`);
       if (action === 'send_now') setMsg(`SEND OK: sent=${data?.sent ?? 0} failed=${data?.failed ?? 0}`);
       router.refresh();
     } catch (e) {
@@ -91,16 +91,18 @@ export default function EmailSendingControlPanel({ campaignName, campaignId, ini
         <div><b>Last auto-send at:</b> {state.last_auto_send_at || '-'}</div>
         <div><b>Last manual live send at:</b> {state.last_manual_send_at || '-'}</div>
         <div><b>Last manual live result:</b> {renderLastResult(state.last_manual_send_result)}</div>
+        <div><b>Last test webhook at:</b> {state.last_test_send_at || '-'}</div>
+        <div><b>Last test webhook result:</b> {renderLastResult(state.last_test_send_result)}</div>
         <div><b>Next due email:</b> {renderNextDue(state.next_due_email)}</div>
         <div><b>Last send result:</b> {renderLastResult(state.last_scheduler_result)}</div>
       </div>
       <div style={{ fontSize: 13, color: '#cbd5e1', lineHeight: 1.6, marginBottom: 12 }}>
-        Preview only nie robi requestu do n8n. Request do webhooka idzie tylko przez <b>Send now (LIVE)</b> albo scheduler <code>POST /api/admin/campaign/cron-sync</code>, gdy email sending jest wlaczony.
+        <b>Test send</b> robi request do n8n, ale nie przesuwa sekwencji i nie oznacza rekordu jako realnie wyslanego. <b>Send now (LIVE)</b> oraz scheduler <code>POST /api/admin/campaign/cron-sync</code> robia prawdziwy progression kampanii.
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button onClick={() => run('start')} disabled={loading} style={{ background: '#111827', color: '#f8fafc', border: '1px solid #374151', borderRadius: 8, padding: '8px 10px' }}>{loading ? '...' : 'Start sending emails'}</button>
         <button onClick={() => run('stop')} disabled={loading} style={{ background: '#111827', color: '#f8fafc', border: '1px solid #374151', borderRadius: 8, padding: '8px 10px' }}>{loading ? '...' : 'Stop sending emails'}</button>
-        <button onClick={() => run('test')} disabled={loading} style={{ background: '#111827', color: '#f8fafc', border: '1px solid #374151', borderRadius: 8, padding: '8px 10px' }}>{loading ? '...' : 'Preview only (no webhook)'}</button>
+        <button onClick={() => run('test')} disabled={loading} style={{ background: '#111827', color: '#f8fafc', border: '1px solid #374151', borderRadius: 8, padding: '8px 10px' }}>{loading ? '...' : 'Test send (webhook only)'}</button>
         <button onClick={() => run('send_now')} disabled={loading} style={{ background: '#111827', color: '#f8fafc', border: '1px solid #374151', borderRadius: 8, padding: '8px 10px' }}>{loading ? '...' : 'Send now (LIVE)'}</button>
       </div>
       {msg ? <div style={{ marginTop: 10, color: msg.startsWith('ERR') ? '#fca5a5' : '#86efac', fontSize: 13 }}>{msg}</div> : null}
