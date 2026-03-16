@@ -1,89 +1,6 @@
 import { getSql } from '@/lib/db.js';
-
-const DEFAULT_CAMPAIGN_NAME = 'OUTSOURCING_IT_EVERGREEM';
-
-async function ensureCampaign(sql, campaignId, campaignName) {
-  if (campaignId) {
-    const rows = await sql`
-      select id
-      from campaigns
-      where id = ${campaignId}::uuid
-      limit 1
-    `;
-    if (rows.length > 0) return rows[0].id;
-  }
-
-  const byName = await sql`
-    select id
-    from campaigns
-    where name = ${campaignName}
-    order by created_at desc
-    limit 1
-  `;
-
-  if (byName.length > 0) return byName[0].id;
-
-  const created = await sql`
-    insert into campaigns (name, status, description, settings)
-    values (
-      ${campaignName},
-      'running',
-      'Kampania ciągła dla nowych leadów',
-      ${JSON.stringify({ mode: 'evergreen', auto_enqueue: true, source: 'webdash_cron_sync', auto_sync_enabled: true, auto_sync_status: 'running', sync_interval_min: 10 })}::jsonb
-    )
-    returning id
-  `;
-
-  return created[0].id;
-}
-
-async function syncCampaignLeads(sql, campaignId) {
-  const rows = await sql`
-    with src as (
-      select distinct ma.lead_id, ma.lead_contact_id
-      from public.message_attempts ma
-      where ma.lead_id is not null
-        and ma.lead_contact_id is not null
-    ), upserted as (
-      insert into public.campaign_leads (
-        campaign_id,
-        lead_id,
-        state,
-        active_contact_id,
-        contact_attempt_no,
-        next_run_at,
-        entered_at,
-        updated_at
-      )
-      select
-        ${campaignId}::uuid,
-        s.lead_id,
-        'in_campaign'::public.lead_status,
-        s.lead_contact_id,
-        1,
-        now(),
-        now(),
-        now()
-      from src s
-      on conflict (campaign_id, lead_id) do update
-      set
-        active_contact_id = excluded.active_contact_id,
-        state = case
-          when campaign_leads.state = 'stopped' then campaign_leads.state
-          else 'in_campaign'::public.lead_status
-        end,
-        updated_at = now()
-      returning (xmax = 0) as inserted
-    )
-    select
-      count(*)::int as total,
-      count(*) filter (where inserted)::int as inserted,
-      count(*) filter (where not inserted)::int as updated
-    from upserted
-  `;
-
-  return rows[0] || { total: 0, inserted: 0, updated: 0 };
-}
+import { DEFAULT_EVERGREEN_NAME, normalizeStoredCampaignSettings } from '@/lib/evergreen-config.js';
+import { getNextExpectedRunAt, getCampaignRuntimeState, resolveOrCreateCampaign, runCampaignGuard } from '@/lib/campaign-guard.js';
 
 export async function POST(req) {
   try {
@@ -97,36 +14,97 @@ export async function POST(req) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const campaignName = String(body?.campaign_name || DEFAULT_CAMPAIGN_NAME).trim() || DEFAULT_CAMPAIGN_NAME;
-    const intervalMin = Number(body?.interval_min || 10);
+    const campaignName = String(body?.campaign_name || DEFAULT_EVERGREEN_NAME).trim() || DEFAULT_EVERGREEN_NAME;
+    const limit = Math.min(Math.max(Number(body?.limit || 25), 1), 200);
+    const dryRun = Boolean(body?.dry_run ?? false);
 
     const sql = getSql();
-    const campaignId = await ensureCampaign(sql, body?.campaign_id || null, campaignName);
-    const result = await syncCampaignLeads(sql, campaignId);
-    const nextExpectedRunAt = new Date(Date.now() + intervalMin * 60 * 1000).toISOString();
+    const campaign = await resolveOrCreateCampaign(sql, {
+      campaignId: body?.campaign_id || null,
+      campaignName,
+      source: 'webdash_cron_sync',
+    });
+
+    const settings = normalizeStoredCampaignSettings(campaign.settings);
+    const runtime = getCampaignRuntimeState(settings);
+    const autoSyncEnabled = body?.force_sync === true ? true : runtime.auto_sync_enabled;
+    const autoSendEnabled = body?.force_send === true ? true : runtime.auto_send_enabled;
+    const intervalMin = Number(body?.interval_min || runtime.sync_interval_min || settings.send_interval_min || 10);
+
+    let sendResult = null;
+    if (autoSendEnabled || dryRun) {
+      sendResult = await runCampaignGuard(sql, {
+        campaignId: campaign.id,
+        campaignName: campaign.name,
+        dryRun,
+        limit,
+        performSync: autoSyncEnabled,
+        source: 'webdash_cron_sync',
+        executionMode: dryRun ? 'cron_sync_preview' : 'cron_sync',
+      });
+    } else {
+      sendResult = await runCampaignGuard(sql, {
+        campaignId: campaign.id,
+        campaignName: campaign.name,
+        dryRun: true,
+        limit,
+        performSync: autoSyncEnabled,
+        source: 'webdash_cron_sync',
+        executionMode: 'cron_sync_preview',
+      });
+    }
+
+    const nextExpectedRunAt = getNextExpectedRunAt(settings, intervalMin);
+    const schedulerResult = {
+      dry_run: dryRun,
+      queued: sendResult?.queued ?? 0,
+      sent: sendResult?.sent ?? 0,
+      failed: sendResult?.failed ?? 0,
+      replied_stopped: sendResult?.replied?.stopped ?? 0,
+      skipped_live_send: !autoSendEnabled && !dryRun,
+      timestamp: new Date().toISOString(),
+    };
 
     await sql`
-      update campaigns
-      set status = 'running'::campaign_status,
-          settings = coalesce(settings, '{}'::jsonb) || ${JSON.stringify({
-            auto_sync_enabled: true,
-            auto_sync_status: 'running',
-            sync_interval_min: intervalMin,
-            last_sync_at: new Date().toISOString(),
-            last_sync_ok: true,
-            next_expected_run_at: nextExpectedRunAt,
-          })}::jsonb || jsonb_build_object('last_sync_result', ${JSON.stringify(result)}::jsonb),
-          updated_at = now()
-      where id = ${campaignId}::uuid
+      update public.campaigns
+      set
+        settings = coalesce(settings, '{}'::jsonb) || ${sql.json({
+          auto_sync_enabled: autoSyncEnabled,
+          auto_sync_status: autoSyncEnabled ? 'running' : 'paused',
+          auto_send_enabled: autoSendEnabled,
+          auto_send_status: autoSendEnabled ? 'running' : 'paused',
+          sync_interval_min: intervalMin,
+          last_sync_at: new Date().toISOString(),
+          last_sync_ok: true,
+          next_expected_run_at: nextExpectedRunAt,
+          last_auto_send_at: !dryRun && autoSendEnabled ? new Date().toISOString() : runtime.last_auto_send_at,
+          last_scheduler_send_at: !dryRun && autoSendEnabled ? new Date().toISOString() : (settings.last_scheduler_send_at || null),
+        })}::jsonb
+        || jsonb_build_object(
+          'last_sync_result', ${sql.json(sendResult?.sync || {})}::jsonb,
+          'last_send_result', ${sql.json(schedulerResult)}::jsonb,
+          'last_scheduler_result', ${sql.json(schedulerResult)}::jsonb
+        ),
+        updated_at = now()
+      where id = ${campaign.id}::uuid
     `;
 
     return Response.json({
       ok: true,
-      mode: 'cron-sync-only',
-      campaign_id: campaignId,
-      campaign_name: campaignName,
+      mode: dryRun ? 'cron-preview' : (autoSendEnabled ? 'cron-sync-send' : 'cron-sync-only'),
+      campaign_id: campaign.id,
+      campaign_name: campaign.name,
+      auto_sync_enabled: autoSyncEnabled,
+      auto_send_enabled: autoSendEnabled,
       next_expected_run_at: nextExpectedRunAt,
-      ...result,
+      sync: sendResult?.sync || null,
+      replied: sendResult?.replied || null,
+      queued: sendResult?.queued ?? 0,
+      sent: sendResult?.sent ?? 0,
+      failed: sendResult?.failed ?? 0,
+      skipped_live_send: !autoSendEnabled && !dryRun,
+      outbox_preview: sendResult?.outbox_preview || [],
+      results: sendResult?.results || [],
     });
   } catch (e) {
     return new Response(String(e?.message || e), { status: 400 });

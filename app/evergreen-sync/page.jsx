@@ -1,7 +1,9 @@
 import { AppShell, Card, StatCard, Table, td, th } from '@/app/components/AppShell.jsx';
 import { getSql } from '@/lib/db.js';
-import EvergreenControlPanel from '@/app/components/EvergreenControlPanel.jsx';
 import AutoSyncControlPanel from '@/app/components/AutoSyncControlPanel.jsx';
+import EmailSendingControlPanel from '@/app/components/EmailSendingControlPanel.jsx';
+import EvergreenControlPanel from '@/app/components/EvergreenControlPanel.jsx';
+import { getCampaignRuntimeState, getCampaignSendStats } from '@/lib/campaign-guard.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,13 +24,16 @@ export default async function EvergreenSyncPage() {
 
   if (!campaign) {
     return (
-      <AppShell title="Evergreen sync monitor" subtitle="Nie znaleziono głównej kampanii evergreen w tabeli campaigns.">
+      <AppShell title="Evergreen sync monitor" subtitle="Nie znaleziono glownej kampanii evergreen w tabeli campaigns.">
         <Card>Brak kampanii <b>{CAMPAIGN_NAME}</b> w tabeli campaigns.</Card>
       </AppShell>
     );
   }
 
   const settings = campaign.settings || {};
+  const runtime = getCampaignRuntimeState(settings);
+  const sendStats = await getCampaignSendStats(sql, campaign.id);
+  const lastSchedulerResult = runtime.last_scheduler_result || {};
 
   const [kpi] = await sql`
     with src as (
@@ -111,17 +116,19 @@ export default async function EvergreenSyncPage() {
   `;
 
   return (
-    <AppShell title="Evergreen sync monitor" subtitle="Monitor synchronizacji evergreen: kliknij Start Auto Sync, zobacz status running i miej pod ręką ręczne akcje oraz KPI syncu.">
+    <AppShell title="Evergreen sync monitor" subtitle="Monitor kampanii evergreen: sync leadow, status automatycznej wysylki maili, kolejka due i reczne akcje w jednym miejscu.">
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 20 }}>
         <StatCard label="Campaign status" value={campaign.status} tone={campaign.status === 'running' ? 'success' : 'warn'} />
-        <StatCard label="Auto sync" value={settings.auto_sync_enabled ? 'enabled' : 'disabled'} tone={settings.auto_sync_enabled ? 'success' : 'warn'} />
-        <StatCard label="Sync status" value={settings.auto_sync_status || 'unknown'} tone={settings.auto_sync_status === 'running' ? 'success' : settings.auto_sync_status === 'error' ? 'danger' : 'warn'} />
+        <StatCard label="Lead sync" value={runtime.auto_sync_enabled ? 'enabled' : 'disabled'} tone={runtime.auto_sync_enabled ? 'success' : 'warn'} />
+        <StatCard label="Email sending" value={runtime.auto_send_enabled ? 'enabled' : 'disabled'} tone={runtime.auto_send_enabled ? 'success' : 'warn'} />
+        <StatCard label="Queued to send now" value={sendStats?.queued_now ?? 0} tone={(sendStats?.queued_now ?? 0) > 0 ? 'success' : 'default'} />
+        <StatCard label="Sent last scheduler run" value={lastSchedulerResult?.sent ?? 0} />
+        <StatCard label="Failed last scheduler run" value={lastSchedulerResult?.failed ?? 0} tone={(lastSchedulerResult?.failed ?? 0) > 0 ? 'danger' : 'default'} />
         <StatCard label="Missing to sync" value={kpi?.missing_in_campaign_leads ?? 0} tone={(kpi?.missing_in_campaign_leads ?? 0) > 0 ? 'danger' : 'default'} />
-        <StatCard label="Inserted 24h" value={kpi?.inserted_last_24h ?? 0} />
         <StatCard label="Updated 24h" value={kpi?.updated_last_24h ?? 0} />
       </section>
 
-      <section style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 20 }}>
+      <section style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
         <Card>
           <h2 style={{ marginTop: 0 }}>Campaign context</h2>
           <Table>
@@ -130,8 +137,10 @@ export default async function EvergreenSyncPage() {
               <tr><td style={td}>Campaign ID</td><td style={td}>{campaign.id}</td></tr>
               <tr><td style={td}>Status</td><td style={td}>{campaign.status}</td></tr>
               <tr><td style={td}>Updated</td><td style={td}>{String(campaign.updated_at)}</td></tr>
-              <tr><td style={td}>Last sync</td><td style={td}>{settings.last_sync_at || '-'}</td></tr>
+              <tr><td style={td}>Last sync</td><td style={td}>{runtime.last_sync_at || '-'}</td></tr>
               <tr><td style={td}>Next expected run</td><td style={td}>{settings.next_expected_run_at || '-'}</td></tr>
+              <tr><td style={td}>Last auto-send</td><td style={td}>{runtime.last_auto_send_at || '-'}</td></tr>
+              <tr><td style={td}>Next due email</td><td style={td}>{sendStats?.next_due_email ? `${sendStats.next_due_email.to_email} | attempt ${sendStats.next_due_email.contact_attempt_no ?? '-'} | ${sendStats.next_due_email.next_run_at ? String(sendStats.next_due_email.next_run_at) : 'now'}` : '-'}</td></tr>
             </tbody>
           </Table>
         </Card>
@@ -139,11 +148,30 @@ export default async function EvergreenSyncPage() {
         <AutoSyncControlPanel
           campaignName={campaign.name}
           initial={{
-            enabled: Boolean(settings.auto_sync_enabled),
-            status: settings.auto_sync_status || campaign.status || 'unknown',
-            sync_interval_min: Number(settings.sync_interval_min || 10),
-            last_sync_at: settings.last_sync_at || '',
+            enabled: runtime.auto_sync_enabled,
+            status: runtime.auto_sync_status || campaign.status || 'unknown',
+            sync_interval_min: Number(runtime.sync_interval_min || 10),
+            last_sync_at: runtime.last_sync_at || '',
             last_sync_result: settings.last_sync_result || null,
+          }}
+        />
+      </section>
+
+      <section style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+        <EmailSendingControlPanel
+          campaignName={campaign.name}
+          campaignId={campaign.id}
+          initial={{
+            enabled: runtime.auto_send_enabled,
+            status: runtime.auto_send_status,
+            queued_now: sendStats?.queued_now ?? 0,
+            next_due_email: sendStats?.next_due_email || null,
+            last_auto_send_at: runtime.last_auto_send_at || '',
+            last_scheduler_result: runtime.last_scheduler_result || null,
+            last_manual_send_at: runtime.last_manual_send_at || '',
+            last_manual_send_result: runtime.last_manual_send_result || null,
+            last_test_send_at: runtime.last_test_send_at || '',
+            last_test_send_result: runtime.last_test_send_result || null,
           }}
         />
 
@@ -152,7 +180,7 @@ export default async function EvergreenSyncPage() {
 
       <section style={{ marginBottom: 20 }}>
         <Card>
-          Główna konfiguracja kampanii evergreen jest teraz tylko w <b>Campaigns</b>, żeby nie było duplikatów i rozjazdu UI vs DB.
+          Glowna konfiguracja kampanii evergreen jest teraz tylko w <b>Campaigns</b>, zeby nie bylo duplikatow i rozjazdu UI vs DB.
         </Card>
       </section>
 
@@ -172,15 +200,15 @@ export default async function EvergreenSyncPage() {
               </tr>
             </thead>
             <tbody>
-              {recent.map((r) => (
-                <tr key={r.id}>
-                  <td style={td}>{r.company_name || '-'}</td>
-                  <td style={td}>{[r.first_name, r.last_name].filter(Boolean).join(' ') || r.email || '-'}</td>
-                  <td style={td}>{r.state}</td>
-                  <td style={td}>{r.contact_attempt_no ?? '-'}</td>
-                  <td style={td}>{r.next_run_at ? String(r.next_run_at) : '-'}</td>
-                  <td style={td}>{String(r.entered_at)}</td>
-                  <td style={td}>{String(r.updated_at)}</td>
+              {recent.map((row) => (
+                <tr key={row.id}>
+                  <td style={td}>{row.company_name || '-'}</td>
+                  <td style={td}>{[row.first_name, row.last_name].filter(Boolean).join(' ') || row.email || '-'}</td>
+                  <td style={td}>{row.state}</td>
+                  <td style={td}>{row.contact_attempt_no ?? '-'}</td>
+                  <td style={td}>{row.next_run_at ? String(row.next_run_at) : '-'}</td>
+                  <td style={td}>{String(row.entered_at)}</td>
+                  <td style={td}>{String(row.updated_at)}</td>
                 </tr>
               ))}
               {recent.length === 0 && <tr><td style={td} colSpan={7}>Brak danych</td></tr>}
@@ -198,13 +226,13 @@ export default async function EvergreenSyncPage() {
               </tr>
             </thead>
             <tbody>
-              {missingSample.map((r) => (
-                <tr key={`${r.lead_id}-${r.lead_contact_id}`}>
-                  <td style={td}>{r.company_name || '-'}</td>
-                  <td style={td}>{[r.first_name, r.last_name].filter(Boolean).join(' ') || r.email || '-'}</td>
+              {missingSample.map((row) => (
+                <tr key={`${row.lead_id}-${row.lead_contact_id}`}>
+                  <td style={td}>{row.company_name || '-'}</td>
+                  <td style={td}>{[row.first_name, row.last_name].filter(Boolean).join(' ') || row.email || '-'}</td>
                 </tr>
               ))}
-              {missingSample.length === 0 && <tr><td style={td} colSpan={2}>Brak brakujących rekordów</td></tr>}
+              {missingSample.length === 0 && <tr><td style={td} colSpan={2}>Brak brakujacych rekordow</td></tr>}
             </tbody>
           </Table>
         </Card>

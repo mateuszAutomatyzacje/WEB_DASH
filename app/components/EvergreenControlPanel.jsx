@@ -16,7 +16,11 @@ async function callJson(url, body) {
   });
   const txt = await res.text();
   let data;
-  try { data = JSON.parse(txt); } catch { data = { raw: txt }; }
+  try {
+    data = JSON.parse(txt);
+  } catch {
+    data = { raw: txt };
+  }
   if (!res.ok) throw new Error(data?.error || data?.message || txt || `HTTP ${res.status}`);
   return data;
 }
@@ -40,12 +44,6 @@ export default function EvergreenControlPanel() {
         setResult(data);
         setMsg(`PREVIEW OK: queued=${data?.queued ?? 0}`);
       }
-      if (action === 'send') {
-        if (!confirm('Uruchomić LIVE wysyłkę?')) return;
-        const data = await callJson('/api/admin/campaign-guard/run', { ...defaultBody, dry_run: false });
-        setResult(data);
-        setMsg(`SEND OK: sent=${data?.sent ?? 0} failed=${data?.failed ?? 0}`);
-      }
     } catch (e) {
       setMsg(`ERR: ${String(e?.message || e)}`);
     } finally {
@@ -55,18 +53,20 @@ export default function EvergreenControlPanel() {
 
   return (
     <section style={{ border: '1px solid #1f2937', borderRadius: 16, padding: 16, background: '#000', color: '#f8fafc' }}>
-      <h3 style={{ marginTop: 0, fontSize: 20 }}>Kontrola Evergreen</h3>
+      <h3 style={{ marginTop: 0, fontSize: 20 }}>Queue preview</h3>
+      <div style={{ fontSize: 13, color: '#cbd5e1', lineHeight: 1.6, marginBottom: 10 }}>
+        Tutaj sprawdzisz, czy rekordy z <code>campaign_leads</code> trafiaja do kolejki mailowej. Glowny status automatycznej wysylki jest w panelu Email sending.
+      </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-        <button onClick={() => run('sync')} disabled={loading} style={{ background: '#111827', color: '#f8fafc', border: '1px solid #374151', borderRadius: 8, padding: '8px 10px' }}>{loading ? '...' : 'Sync leadów -> campaign_leads'}</button>
+        <button onClick={() => run('sync')} disabled={loading} style={{ background: '#111827', color: '#f8fafc', border: '1px solid #374151', borderRadius: 8, padding: '8px 10px' }}>{loading ? '...' : 'Sync leads -> campaign_leads'}</button>
         <button onClick={() => run('preview')} disabled={loading} style={{ background: '#111827', color: '#f8fafc', border: '1px solid #374151', borderRadius: 8, padding: '8px 10px' }}>{loading ? '...' : 'Preview outbox (dry-run)'}</button>
-        <button onClick={() => run('send')} disabled={loading} style={{ background: '#111827', color: '#f8fafc', border: '1px solid #374151', borderRadius: 8, padding: '8px 10px' }}>{loading ? '...' : 'Send now (LIVE)'}</button>
       </div>
       {msg ? <div style={{ marginTop: 8, fontSize: 13, color: msg.startsWith('ERR') ? '#fca5a5' : '#86efac' }}>{msg}</div> : null}
       {result ? (
         <>
           {Array.isArray(result?.outbox_preview) && result.outbox_preview.length > 0 ? (
             <div style={{ marginTop: 12 }}>
-              <div style={{ fontSize: 13, marginBottom: 6, color: '#cbd5e1' }}><b>Kolejka do wysyłki (to_email + subject)</b></div>
+              <div style={{ fontSize: 13, marginBottom: 6, color: '#cbd5e1' }}><b>Queue ready for email send</b></div>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
                   <tr>
@@ -77,12 +77,12 @@ export default function EvergreenControlPanel() {
                   </tr>
                 </thead>
                 <tbody>
-                  {result.outbox_preview.map((r) => (
-                    <tr key={`${r.campaign_lead_id}-${r.message_attempt_id}`}>
-                      <td style={{ borderBottom: '1px solid #111827', padding: '6px 4px' }}>{r.to_email}</td>
-                      <td style={{ borderBottom: '1px solid #111827', padding: '6px 4px' }}>{r.send_subject}</td>
-                      <td style={{ borderBottom: '1px solid #111827', padding: '6px 4px' }}>{r.contact_attempt_no}</td>
-                      <td style={{ borderBottom: '1px solid #111827', padding: '6px 4px' }}>{r.campaign_lead_id}</td>
+                  {result.outbox_preview.map((row) => (
+                    <tr key={`${row.campaign_lead_id}-${row.message_attempt_id}`}>
+                      <td style={{ borderBottom: '1px solid #111827', padding: '6px 4px' }}>{row.to_email}</td>
+                      <td style={{ borderBottom: '1px solid #111827', padding: '6px 4px' }}>{row.send_subject}</td>
+                      <td style={{ borderBottom: '1px solid #111827', padding: '6px 4px' }}>{row.contact_attempt_no}</td>
+                      <td style={{ borderBottom: '1px solid #111827', padding: '6px 4px' }}>{row.campaign_lead_id}</td>
                     </tr>
                   ))}
                 </tbody>

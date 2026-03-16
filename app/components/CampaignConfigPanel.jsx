@@ -263,7 +263,8 @@ export default function CampaignConfigPanel({ initialCampaignId = '', initialCam
             <textarea rows={6} value={settingsText} onChange={(e) => setSettingsText(e.target.value)} style={input} />
           </label>
           <div style={{ fontSize: 12, color: '#555' }}>
-            This JSON edits only top-level campaign settings. Runner and webhook payload are controlled below.
+            This JSON edits only top-level campaign settings. Runner and webhook payload are controlled below. Optional keys:
+            <code> follow_up_1_delay_days </code> and <code> follow_up_2_delay_days </code>.
           </div>
 
           <div style={{ marginTop: 8, padding: 12, border: '1px solid #eee', borderRadius: 8, display: 'grid', gap: 10 }}>
