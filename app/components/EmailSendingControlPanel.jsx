@@ -69,7 +69,7 @@ export default function EmailSendingControlPanel({ campaignName, campaignId, ini
       setResult(data);
       if (action === 'start') setMsg('AUTO EMAIL SENDING RUNNING');
       if (action === 'stop') setMsg('AUTO EMAIL SENDING PAUSED');
-      if (action === 'test') setMsg(`TEST WEBHOOK OK: sent=${data?.sent ?? 0} failed=${data?.failed ?? 0}`);
+      if (action === 'test') setMsg(`TEST WEBHOOK OK: sent=${data?.sent ?? 0} failed=${data?.failed ?? 0} to mateusz.wiszniowski.biznes@gmail.com`);
       if (action === 'send_now') setMsg(`SEND OK: sent=${data?.sent ?? 0} failed=${data?.failed ?? 0}`);
       router.refresh();
     } catch (e) {
@@ -93,11 +93,12 @@ export default function EmailSendingControlPanel({ campaignName, campaignId, ini
         <div><b>Last manual live result:</b> {renderLastResult(state.last_manual_send_result)}</div>
         <div><b>Last test webhook at:</b> {state.last_test_send_at || '-'}</div>
         <div><b>Last test webhook result:</b> {renderLastResult(state.last_test_send_result)}</div>
+        <div><b>Test recipient:</b> mateusz.wiszniowski.biznes@gmail.com</div>
         <div><b>Next due email:</b> {renderNextDue(state.next_due_email)}</div>
         <div><b>Last send result:</b> {renderLastResult(state.last_scheduler_result)}</div>
       </div>
       <div style={{ fontSize: 13, color: '#cbd5e1', lineHeight: 1.6, marginBottom: 12 }}>
-        <b>Test send</b> robi request do n8n, ale nie przesuwa sekwencji i nie oznacza rekordu jako realnie wyslanego. <b>Send now (LIVE)</b> oraz scheduler <code>POST /api/admin/campaign/cron-sync</code> robia prawdziwy progression kampanii.
+        <b>Test send</b> wysyla przykladowa wiadomosc na <b>mateusz.wiszniowski.biznes@gmail.com</b>, robi request do n8n i nie przesuwa sekwencji kampanii. <b>Send now (LIVE)</b> oraz scheduler <code>POST /api/admin/campaign/cron-sync</code> robia prawdziwy progression kampanii.
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button onClick={() => run('start')} disabled={loading} style={{ background: '#111827', color: '#f8fafc', border: '1px solid #374151', borderRadius: 8, padding: '8px 10px' }}>{loading ? '...' : 'Start sending emails'}</button>

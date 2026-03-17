@@ -1,8 +1,39 @@
 import { getSql } from '@/lib/db.js';
 import { DEFAULT_EVERGREEN_NAME, normalizeStoredCampaignSettings } from '@/lib/evergreen-config.js';
-import { getCampaignRuntimeState, getCampaignSendStats, resolveOrCreateCampaign, runCampaignGuard } from '@/lib/campaign-guard.js';
+import { getCampaignRuntimeState, getCampaignSendStats, resolveOrCreateCampaign, runCampaignGuard, triggerSmtpWebhook } from '@/lib/campaign-guard.js';
 
 const ALLOWED = new Set(['start', 'stop', 'test', 'send_now']);
+const TEST_WEBHOOK_RECIPIENT = 'mateusz.wiszniowski.biznes@gmail.com';
+
+function buildSampleTestPayload(campaign, timestamp) {
+  const subject = `[WebDash Test] ${campaign.name}`;
+  const body = [
+    'To jest przykladowa wiadomosc testowa z WebDash.',
+    '',
+    `Campaign: ${campaign.name}`,
+    `Campaign ID: ${campaign.id}`,
+    `Generated at: ${timestamp}`,
+    '',
+    'Ten test uderza w webhook smtp-send, ale nie przesuwa sekwencji kampanii.',
+  ].join('\n');
+
+  return {
+    campaign_id: campaign.id,
+    lead_id: null,
+    lead_contact_id: null,
+    campaign_lead_id: null,
+    message_attempt_id: null,
+    contact_attempt_no: 0,
+    execution_mode: 'manual_test_webhook_sample',
+    sequence_step: 'sample_test',
+    to_email: TEST_WEBHOOK_RECIPIENT,
+    subject,
+    body,
+    campaign_lead_state: 'test',
+    next_run_at: null,
+    webdash_test_sample: true,
+  };
+}
 
 export async function POST(req) {
   try {
@@ -36,17 +67,40 @@ export async function POST(req) {
     }
 
     if (action === 'test') {
-      result = await runCampaignGuard(sql, {
-        campaignId: campaign.id,
-        campaignName: campaign.name,
-        dryRun: false,
-        persistDelivery: false,
-        includeNotDue: true,
-        limit,
-        performSync: runtime.auto_sync_enabled,
-        source: 'webdash_test_send',
-        executionMode: 'manual_test_send',
-      });
+      const samplePayload = buildSampleTestPayload(campaign, nowIso);
+      const webhook = await triggerSmtpWebhook(samplePayload);
+
+      result = {
+        ok: true,
+        mode: 'webhook_only_sample',
+        campaign,
+        sync: null,
+        replied: null,
+        queued: 1,
+        sent: 1,
+        failed: 0,
+        webhook_url: webhook.webhook_url,
+        webhook_response: webhook.response,
+        outbox_preview: [{
+          campaign_lead_id: 'sample-test',
+          message_attempt_id: 'sample-test',
+          to_email: samplePayload.to_email,
+          send_subject: samplePayload.subject,
+          send_body_preview: samplePayload.body.slice(0, 120),
+          lead_id: null,
+          lead_contact_id: null,
+          contact_attempt_no: samplePayload.contact_attempt_no,
+          step_key: samplePayload.sequence_step,
+          next_run_at: null,
+        }],
+        results: [{
+          ok: true,
+          step_key: samplePayload.sequence_step,
+          stopped: false,
+          webhook_only: true,
+          sample: true,
+        }],
+      };
 
       patch = {
         ...patch,
@@ -57,8 +111,10 @@ export async function POST(req) {
           failed: result?.failed ?? 0,
           previewed: result?.outbox_preview?.length ?? 0,
           webhook_only: true,
+          sample_recipient: TEST_WEBHOOK_RECIPIENT,
+          sample_subject: samplePayload.subject,
           limit,
-          replied_stopped: result?.replied?.stopped ?? 0,
+          replied_stopped: 0,
           timestamp: nowIso,
         },
       };
