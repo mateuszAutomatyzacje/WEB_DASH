@@ -1,6 +1,6 @@
 import { getSql } from '@/lib/db.js';
 import { DEFAULT_EVERGREEN_NAME, normalizeStoredCampaignSettings } from '@/lib/evergreen-config.js';
-import { getCampaignRuntimeState, getCampaignSendStats, resolveOrCreateCampaign, runCampaignGuard, triggerSmtpWebhook } from '@/lib/campaign-guard.js';
+import { ensureCanSendEmailNow, getCampaignRuntimeState, getCampaignSendStats, resolveOrCreateCampaign, runCampaignGuard, triggerSmtpWebhook } from '@/lib/campaign-guard.js';
 
 const ALLOWED = new Set(['start', 'stop', 'test', 'send_now']);
 const TEST_WEBHOOK_RECIPIENT = 'mateusz.wiszniowski.biznes@gmail.com';
@@ -67,6 +67,7 @@ export async function POST(req) {
     }
 
     if (action === 'test') {
+      ensureCanSendEmailNow();
       const samplePayload = buildSampleTestPayload(campaign, nowIso);
       const webhook = await triggerSmtpWebhook(samplePayload);
 
