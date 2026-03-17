@@ -1,5 +1,5 @@
 import { getSql } from '@/lib/db.js';
-import { ensureScrapeSettings } from '@/lib/scrape-settings.js';
+import { ensureScrapeSettings, getScrapeWebhookUrl } from '@/lib/scrape-settings.js';
 
 function buildRunnerPayload(cfg) {
   return {
@@ -24,8 +24,11 @@ export async function POST() {
     const { settings: cfg } = await ensureScrapeSettings(sql);
     if (!cfg) throw new Error("Missing scrape_settings row id='global'");
 
-    const runnerWebhookUrl = String(process.env.JUSTJOIN_SCRAPER_WEBHOOK_URL || '').trim();
-    if (!runnerWebhookUrl) throw new Error('Missing JUSTJOIN_SCRAPER_WEBHOOK_URL');
+    const resolvedWebhook = await getScrapeWebhookUrl(sql);
+    const runnerWebhookUrl = resolvedWebhook.webhookUrl || String(process.env.JUSTJOIN_SCRAPER_WEBHOOK_URL || '').trim();
+    if (!runnerWebhookUrl) {
+      throw new Error('Missing evergreen_runner.webhook_url and JUSTJOIN_SCRAPER_WEBHOOK_URL');
+    }
 
     const token = process.env.JUSTJOIN_SCRAPER_WEBHOOK_TOKEN || null;
 
