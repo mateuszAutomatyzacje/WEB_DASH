@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { formatDateTime } from '@/lib/time.js';
 
 const INTERVAL_MS = 10 * 60 * 1000;
 
@@ -128,7 +129,7 @@ export default function GuardPollerTest() {
 
       <div style={{ marginTop: 10, fontSize: 12, opacity: 0.9 }}>
         <div>Runs: {runs}</div>
-        <div>Last run: {lastRunAt ? new Date(lastRunAt).toLocaleString() : '-'}</div>
+        <div>Last run: {formatDateTime(lastRunAt)}</div>
         <div>Status: {lastStatus}</div>
         <div>Info: {lastMsg || '-'}</div>
       </div>

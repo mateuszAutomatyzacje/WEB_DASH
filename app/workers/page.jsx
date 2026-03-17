@@ -1,6 +1,7 @@
 import { AppShell, Card, StatCard, Table, td, th } from '@/app/components/AppShell.jsx';
 import { getSql } from '@/lib/db.js';
 import { getAnalyticsSnapshot } from '@/lib/reporting.js';
+import { formatDateTime } from '@/lib/time.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -78,7 +79,7 @@ export default async function WorkersPage() {
                   <td style={td}>{row.failed_today}</td>
                   <td style={td}>{row.remaining_today}</td>
                   <td style={{ ...td, color: Number(row.load_pct) >= 80 ? '#fca5a5' : '#cbd5e1' }}>{row.load_pct ?? 0}%</td>
-                  <td style={td}>{row.last_used_at ? String(row.last_used_at) : '-'}</td>
+                  <td style={td}>{formatDateTime(row.last_used_at)}</td>
                 </tr>
               ))}
               {analytics.smtpLoad.length === 0 && <tr><td style={td} colSpan={8}>No SMTP accounts</td></tr>}
@@ -103,7 +104,7 @@ export default async function WorkersPage() {
                 <tr key={r.event_type}>
                   <td style={td}>{r.event_type}</td>
                   <td style={td}>{r.total}</td>
-                  <td style={td}>{r.latest_at ? String(r.latest_at) : '-'}</td>
+                  <td style={td}>{formatDateTime(r.latest_at)}</td>
                 </tr>
               ))}
               {events.length === 0 && <tr><td style={td} colSpan={3}>No events</td></tr>}
@@ -126,7 +127,7 @@ export default async function WorkersPage() {
             <tbody>
               {recent.map((r, i) => (
                 <tr key={`${r.created_at}-${i}`}>
-                  <td style={td}>{String(r.created_at)}</td>
+                  <td style={td}>{formatDateTime(r.created_at)}</td>
                   <td style={{ ...td, fontWeight: 700 }}>{r.event_type}</td>
                   <td style={td}>{r.campaign_name || '-'}</td>
                   <td style={td}>{r.company_name || '-'}</td>
@@ -155,7 +156,7 @@ export default async function WorkersPage() {
           <tbody>
             {analytics.errorLogs.map((row, i) => (
               <tr key={`${row.created_at}-${i}`}>
-                <td style={td}>{String(row.created_at)}</td>
+                <td style={td}>{formatDateTime(row.created_at)}</td>
                 <td style={td}>{row.campaign_name}</td>
                 <td style={td}>{row.account_key}</td>
                 <td style={td}>{row.to_email}</td>

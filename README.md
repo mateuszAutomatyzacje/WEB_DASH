@@ -5,6 +5,8 @@ Next.js App Router dashboard for the lead funnel → campaign guard system.
 ## Env
 - `DATABASE_URL` (Railway Postgres)
 - `WEBDASH_SCHEDULER_TOKEN` (opcjonalny bearer token dla Railway Cron / schedulera)
+- `WEBDASH_INTERNAL_SCHEDULER_DISABLED=1` (opcjonalnie wyłącza wbudowany scheduler procesu)
+- `WEBDASH_INTERNAL_SCHEDULER_DEV=1` (opcjonalnie włącza wbudowany scheduler także w `next dev`)
 
 ## Scripts
 - `npm run dev`
@@ -60,6 +62,15 @@ Use this for cron/scheduler if you want only lead auto-sync without triggering s
   "interval_min": 10
 }
 ```
+
+### Built-in scheduler
+WebDash ma teraz wbudowany scheduler procesu w runtime Node:
+- w `production` startuje automatycznie,
+- co ok. 60 sekund sprawdza kampanie evergreen ze statusem `running`,
+- wykonuje tick tylko wtedy, gdy minął `sync_interval_min`,
+- używa tej samej logiki co `POST /api/admin/campaign/cron-sync`.
+
+Zewnętrzny cron jest nadal opcjonalny jako fallback albo dodatkowy trigger.
 
 ### Railway Cron / Scheduled Job recipe
 - trigger: every 10 min

@@ -3,6 +3,7 @@ import { AppShell, Card, StatCard, Table, td, th } from '@/app/components/AppShe
 import LineChartCard from '@/app/components/LineChartCard.jsx';
 import { getSql } from '@/lib/db.js';
 import { getAnalyticsSnapshot } from '@/lib/reporting.js';
+import { formatDateTime } from '@/lib/time.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -249,7 +250,7 @@ export default async function Page() {
               <tbody>
                 {warmLeads.map((r, i) => (
                   <tr key={`${r.replied_at}-${i}`}>
-                    <td style={td}>{String(r.replied_at)}</td>
+                    <td style={td}>{formatDateTime(r.replied_at)}</td>
                     <td style={td}>{r.campaign_id ? <Link href={`/campaigns/${r.campaign_id}`}>{r.campaign_name || r.campaign_id}</Link> : '-'}</td>
                     <td style={td}>{r.company_name || '-'}</td>
                     <td style={td}>{[r.first_name, r.last_name].filter(Boolean).join(' ') || r.email || '-'}</td>
@@ -279,7 +280,7 @@ export default async function Page() {
               <tbody>
                 {queue.map((r) => (
                   <tr key={r.id}>
-                    <td style={td}>{String(r.next_run_at)}</td>
+                    <td style={td}>{formatDateTime(r.next_run_at)}</td>
                     <td style={td}><Link href={`/campaigns/${r.campaign_id}`}>{r.campaign_name}</Link></td>
                     <td style={td}>{r.company_name || '-'}</td>
                     <td style={td}>{r.contact_attempt_no ?? '-'}{r.email ? ` · ${r.email}` : ''}</td>

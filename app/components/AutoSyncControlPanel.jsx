@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { formatDateTime } from '@/lib/time.js';
 
 export default function AutoSyncControlPanel({ campaignName, initial }) {
   const router = useRouter();
@@ -59,9 +60,9 @@ export default function AutoSyncControlPanel({ campaignName, initial }) {
         <div><b>Enabled:</b> {state.enabled ? 'yes' : 'no'}</div>
         <div><b>Status:</b> <span style={{ color: state.status === 'running' ? '#86efac' : state.status === 'error' ? '#fca5a5' : '#fdba74', fontWeight: 700 }}>{state.status || 'unknown'}</span></div>
         <div><b>Interval:</b> every {state.sync_interval_min || 10} min</div>
-        <div><b>Last sync:</b> {state.last_sync_at || '-'}</div>
+        <div><b>Last sync:</b> {formatDateTime(state.last_sync_at)}</div>
         <div><b>Last result:</b> {state.last_sync_result ? `inserted=${state.last_sync_result.inserted ?? 0}, updated=${state.last_sync_result.updated ?? 0}, tagged=${state.last_sync_result.tagged_attempts ?? 0}` : '-'}</div>
-        <div><b>Scheduler:</b> odpalaj cron na <code>POST /api/admin/campaign/cron-sync</code> co 10 min. Ten tick robi sync leadow i live send due maili.</div>
+        <div><b>Scheduler:</b> WebDash ma teraz wewnetrzny scheduler procesu, ktory sam sprawdza due kampanie co ok. 60 sekund i odpala tick wedlug interwalu z DB. Dotyczy to tylko kampanii evergreen ze statusem <code>running</code>. Zewnetrzny cron na <code>POST /api/admin/campaign/cron-sync</code> jest nadal opcjonalny.</div>
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button onClick={() => run('start')} disabled={loading} style={{ background: '#111827', color: '#f8fafc', border: '1px solid #374151', borderRadius: 8, padding: '8px 10px' }}>{loading ? '...' : 'Start Auto Sync'}</button>

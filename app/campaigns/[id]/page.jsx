@@ -3,6 +3,7 @@ import AdminButton from '@/app/components/AdminButton.jsx';
 import CampaignGuardTable from '@/app/components/CampaignGuardTable.jsx';
 import { AppShell, Card, StatCard, Table, td, th } from '@/app/components/AppShell.jsx';
 import { getSql } from '@/lib/db.js';
+import { formatDateTime } from '@/lib/time.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -209,7 +210,7 @@ export default async function CampaignDetailPage({ params }) {
         <StatCard label="CTR" value={`${pct(attemptStats?.clicked_total, outboundTotal)}%`} helper={`clicked: ${attemptStats?.clicked_total ?? 0}`} />
         <StatCard label="Reply Rate" value={`${pct(attemptStats?.replied_total, outboundTotal)}%`} helper={`replied: ${attemptStats?.replied_total ?? 0}`} tone="success" />
         <StatCard label="Bounce Rate" value={`${pct(attemptStats?.bounced_total, outboundTotal)}%`} helper={`bounced: ${attemptStats?.bounced_total ?? 0}`} tone={pct(attemptStats?.bounced_total, outboundTotal) > 5 ? 'danger' : 'warn'} />
-        <StatCard label="Projected finish" value={timeline?.projected_finish ? String(timeline.projected_finish).slice(0, 16).replace('T', ' ') : '—'} helper={`future scheduled: ${timeline?.scheduled_future ?? 0}`} />
+        <StatCard label="Projected finish" value={formatDateTime(timeline?.projected_finish, { includeSeconds: false })} helper={`future scheduled: ${timeline?.scheduled_future ?? 0}`} />
         <StatCard label="Error logs" value={errorSummary?.failed_sends ?? 0} helper="failed sends in message_sends" tone={(errorSummary?.failed_sends ?? 0) > 0 ? 'danger' : 'default'} />
       </section>
 
@@ -221,10 +222,10 @@ export default async function CampaignDetailPage({ params }) {
               <tr><td style={td}>id</td><td style={td}>{campaign.id}</td></tr>
               <tr><td style={td}>status</td><td style={td}>{campaign.status}</td></tr>
               <tr><td style={td}>description</td><td style={td}>{campaign.description || '-'}</td></tr>
-              <tr><td style={td}>updated_at</td><td style={td}>{String(campaign.updated_at)}</td></tr>
-              <tr><td style={td}>created_at</td><td style={td}>{String(campaign.created_at)}</td></tr>
-              <tr><td style={td}>next_eta</td><td style={td}>{timeline?.next_eta ? String(timeline.next_eta) : '-'}</td></tr>
-              <tr><td style={td}>projected_finish</td><td style={td}>{timeline?.projected_finish ? String(timeline.projected_finish) : '-'}</td></tr>
+              <tr><td style={td}>updated_at</td><td style={td}>{formatDateTime(campaign.updated_at)}</td></tr>
+              <tr><td style={td}>created_at</td><td style={td}>{formatDateTime(campaign.created_at)}</td></tr>
+              <tr><td style={td}>next_eta</td><td style={td}>{formatDateTime(timeline?.next_eta)}</td></tr>
+              <tr><td style={td}>projected_finish</td><td style={td}>{formatDateTime(timeline?.projected_finish)}</td></tr>
             </tbody>
           </Table>
         </Card>

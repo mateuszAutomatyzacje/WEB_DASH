@@ -4,6 +4,7 @@ import AutoSyncControlPanel from '@/app/components/AutoSyncControlPanel.jsx';
 import EmailSendingControlPanel from '@/app/components/EmailSendingControlPanel.jsx';
 import EvergreenControlPanel from '@/app/components/EvergreenControlPanel.jsx';
 import { getCampaignRuntimeState, getCampaignSendStats } from '@/lib/campaign-guard.js';
+import { formatDateTime } from '@/lib/time.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -147,11 +148,11 @@ export default async function EvergreenSyncPage() {
               <tr><td style={td}>Campaign</td><td style={td}>{campaign.name}</td></tr>
               <tr><td style={td}>Campaign ID</td><td style={td}>{campaign.id}</td></tr>
               <tr><td style={td}>Status</td><td style={td}>{campaign.status}</td></tr>
-              <tr><td style={td}>Updated</td><td style={td}>{String(campaign.updated_at)}</td></tr>
-              <tr><td style={td}>Last sync</td><td style={td}>{runtime.last_sync_at || '-'}</td></tr>
-              <tr><td style={td}>Next expected run</td><td style={td}>{settings.next_expected_run_at || '-'}</td></tr>
-              <tr><td style={td}>Last auto-send</td><td style={td}>{runtime.last_auto_send_at || '-'}</td></tr>
-              <tr><td style={td}>Next due email</td><td style={td}>{sendStats?.next_due_email ? `${sendStats.next_due_email.to_email} | attempt ${sendStats.next_due_email.contact_attempt_no ?? '-'} | ${sendStats.next_due_email.next_run_at ? String(sendStats.next_due_email.next_run_at) : 'now'}` : '-'}</td></tr>
+              <tr><td style={td}>Updated</td><td style={td}>{formatDateTime(campaign.updated_at)}</td></tr>
+              <tr><td style={td}>Last sync</td><td style={td}>{formatDateTime(runtime.last_sync_at)}</td></tr>
+              <tr><td style={td}>Next expected run</td><td style={td}>{formatDateTime(settings.next_expected_run_at)}</td></tr>
+              <tr><td style={td}>Last auto-send</td><td style={td}>{formatDateTime(runtime.last_auto_send_at)}</td></tr>
+              <tr><td style={td}>Next due email</td><td style={td}>{sendStats?.next_due_email ? `${sendStats.next_due_email.to_email} | attempt ${sendStats.next_due_email.contact_attempt_no ?? '-'} | ${sendStats.next_due_email.next_run_at ? formatDateTime(sendStats.next_due_email.next_run_at) : 'now'}` : '-'}</td></tr>
             </tbody>
           </Table>
         </Card>
@@ -217,9 +218,9 @@ export default async function EvergreenSyncPage() {
                   <td style={td}>{[row.first_name, row.last_name].filter(Boolean).join(' ') || row.email || '-'}</td>
                   <td style={td}>{row.state}</td>
                   <td style={td}>{row.contact_attempt_no ?? '-'}</td>
-                  <td style={td}>{row.next_run_at ? String(row.next_run_at) : '-'}</td>
-                  <td style={td}>{String(row.entered_at)}</td>
-                  <td style={td}>{String(row.updated_at)}</td>
+                  <td style={td}>{formatDateTime(row.next_run_at)}</td>
+                  <td style={td}>{formatDateTime(row.entered_at)}</td>
+                  <td style={td}>{formatDateTime(row.updated_at)}</td>
                 </tr>
               ))}
               {recent.length === 0 && <tr><td style={td} colSpan={7}>Brak danych</td></tr>}

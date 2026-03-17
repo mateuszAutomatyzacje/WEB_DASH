@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { formatDateTime } from '@/lib/time.js';
 
 function parseJson(text) {
   try {
@@ -18,7 +19,7 @@ function renderLastResult(result) {
 
 function renderNextDue(nextDue) {
   if (!nextDue) return '-';
-  const when = nextDue.next_run_at ? String(nextDue.next_run_at) : 'now';
+  const when = nextDue.next_run_at ? formatDateTime(nextDue.next_run_at) : 'now';
   const who = nextDue.to_email || '-';
   const company = nextDue.company_name || '-';
   return `${who} | ${company} | attempt ${nextDue.contact_attempt_no ?? '-'} | ${when}`;
@@ -88,10 +89,10 @@ export default function EmailSendingControlPanel({ campaignName, campaignId, ini
         <div><b>Queued to send now:</b> {state.queued_now ?? 0}</div>
         <div><b>Sent in last scheduler run:</b> {state.last_scheduler_result?.sent ?? 0}</div>
         <div><b>Failed in last scheduler run:</b> {state.last_scheduler_result?.failed ?? 0}</div>
-        <div><b>Last auto-send at:</b> {state.last_auto_send_at || '-'}</div>
-        <div><b>Last manual live send at:</b> {state.last_manual_send_at || '-'}</div>
+        <div><b>Last auto-send at:</b> {formatDateTime(state.last_auto_send_at)}</div>
+        <div><b>Last manual live send at:</b> {formatDateTime(state.last_manual_send_at)}</div>
         <div><b>Last manual live result:</b> {renderLastResult(state.last_manual_send_result)}</div>
-        <div><b>Last test webhook at:</b> {state.last_test_send_at || '-'}</div>
+        <div><b>Last test webhook at:</b> {formatDateTime(state.last_test_send_at)}</div>
         <div><b>Last test webhook result:</b> {renderLastResult(state.last_test_send_result)}</div>
         <div><b>Test recipient:</b> mateusz.wiszniowski.biznes@gmail.com</div>
         <div><b>Next due email:</b> {renderNextDue(state.next_due_email)}</div>

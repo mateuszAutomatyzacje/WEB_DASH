@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { formatDateTime } from '@/lib/time.js';
 
 const td = { borderBottom: '1px solid #111827', padding: '8px 6px', verticalAlign: 'top', color: '#f8fafc' };
 const th = { textAlign: 'left', borderBottom: '1px solid #1f2937', padding: '8px 6px', color: '#94a3b8' };
@@ -87,7 +88,7 @@ export default function CampaignGuardTable({ rows = [] }) {
                 <td style={td}>{r.email || '-'}</td>
                 <td style={td}>{r.state}{r.stop_reason ? ` (${r.stop_reason})` : ''}</td>
                 <td style={td}>{r.contact_attempt_no ?? '-'}</td>
-                <td style={td}>{r.next_run_at ? String(r.next_run_at) : '-'}</td>
+                <td style={td}>{formatDateTime(r.next_run_at)}</td>
                 <td style={td}>{r.latest_event_type || '-'}</td>
                 <td style={td}>
                   <span style={{ display: 'inline-block', padding: '3px 8px', borderRadius: 999, background: monitor.bg, color: monitor.color, fontSize: 12 }}>

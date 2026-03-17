@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { AppShell, Card, FilterForm, FiltersGrid, Field, Pagination, Table, StatCard, inputStyle, td, th } from '@/app/components/AppShell.jsx';
 import { getSql } from '@/lib/db.js';
+import { formatDateTime } from '@/lib/time.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -339,7 +340,7 @@ export default async function WarmLeadsPage({ searchParams }) {
           <tbody>
             {rows.map((r, i) => (
               <tr key={`${r.lead_id}-${r.campaign_id || 'none'}-${i}`}>
-                <td style={td}>{String(r.replied_at)}</td>
+                <td style={td}>{formatDateTime(r.replied_at)}</td>
                 <td style={{ ...td, fontWeight: 700, color: r.pipeline_stage === 'unassigned' ? '#fca5a5' : r.pipeline_stage === 'in_progress' ? '#86efac' : '#fdba74' }}>{r.pipeline_stage}</td>
                 <td style={td}>{r.campaign_id ? <Link href={`/campaigns/${r.campaign_id}`}>{r.campaign_name || r.campaign_id}</Link> : '-'}</td>
                 <td style={td}>{r.company_name || '-'}</td>
@@ -348,7 +349,7 @@ export default async function WarmLeadsPage({ searchParams }) {
                   <div style={{ fontSize: 12, color: '#94a3b8' }}>{r.email || '-'}</div>
                 </td>
                 <td style={td}>{r.owner || '-'}</td>
-                <td style={td}>{r.sla_due_at ? String(r.sla_due_at) : '-'}</td>
+                <td style={td}>{formatDateTime(r.sla_due_at)}</td>
               </tr>
             ))}
             {rows.length === 0 && <tr><td style={td} colSpan={7}>No warm leads for current filters</td></tr>}

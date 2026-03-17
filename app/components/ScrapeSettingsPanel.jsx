@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { formatDateTime } from '@/lib/time.js';
 
 function numOrNull(v) {
   if (v === '' || v === null || typeof v === 'undefined') return null;
@@ -200,8 +201,8 @@ export default function ScrapeSettingsPanel({ initial }) {
       <div style={{ fontSize: 13, display: 'grid', gap: 6 }}>
         <div><b>Last run ID:</b> {cfg?.last_run_id || '-'}</div>
         <div><b>Status:</b> {cfg?.last_run_status || '-'}</div>
-        <div><b>Last run at:</b> {cfg?.last_run_at ? String(cfg.last_run_at) : '-'}</div>
-        <div style={{ color: '#666' }}><b>locked_until:</b> {cfg?.locked_until ? String(cfg.locked_until) : '-'}</div>
+        <div><b>Last run at:</b> {formatDateTime(cfg?.last_run_at)}</div>
+        <div style={{ color: '#666' }}><b>locked_until:</b> {formatDateTime(cfg?.locked_until)}</div>
       </div>
     </section>
   );

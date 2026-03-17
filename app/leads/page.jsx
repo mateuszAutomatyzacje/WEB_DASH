@@ -1,5 +1,6 @@
 import { AppShell, Card, FilterForm, FiltersGrid, Field, Pagination, Table, inputStyle, td, th } from '@/app/components/AppShell.jsx';
 import { getSql } from '@/lib/db.js';
+import { formatDateTime } from '@/lib/time.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -178,7 +179,7 @@ export default async function LeadsPage({ searchParams }) {
                 <td style={td}>{r.contacts_with_email ?? 0}</td>
                 <td style={td}>{r.enriched_contacts ?? 0}</td>
                 <td style={td}>{r.campaign_links ?? 0}</td>
-                <td style={td}>{String(r.updated_at)}</td>
+                <td style={td}>{formatDateTime(r.updated_at)}</td>
               </tr>
             ))}
             {rows.length === 0 && <tr><td style={td} colSpan={8}>No leads for current filters</td></tr>}

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { AppShell, Card, FilterForm, FiltersGrid, Field, Table, inputStyle, td, th } from '@/app/components/AppShell.jsx';
 import { getSql } from '@/lib/db.js';
+import { formatDateTime } from '@/lib/time.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -78,7 +79,7 @@ export default async function QueuePage({ searchParams }) {
         <Card><div style={{ fontSize: 13, color: '#94a3b8' }}>Total queued</div><div style={{ fontSize: 30, fontWeight: 800 }}>{summary?.total ?? 0}</div></Card>
         <Card><div style={{ fontSize: 13, color: '#94a3b8' }}>Overdue</div><div style={{ fontSize: 30, fontWeight: 800, color: '#fca5a5' }}>{summary?.overdue ?? 0}</div></Card>
         <Card><div style={{ fontSize: 13, color: '#94a3b8' }}>Next 24h</div><div style={{ fontSize: 30, fontWeight: 800 }}>{summary?.next_24h ?? 0}</div></Card>
-        <Card><div style={{ fontSize: 13, color: '#94a3b8' }}>Next ETA</div><div style={{ fontSize: 20, fontWeight: 800 }}>{summary?.next_eta ? String(summary.next_eta) : '-'}</div></Card>
+        <Card><div style={{ fontSize: 13, color: '#94a3b8' }}>Next ETA</div><div style={{ fontSize: 20, fontWeight: 800 }}>{formatDateTime(summary?.next_eta)}</div></Card>
       </section>
 
       <FilterForm>
@@ -124,7 +125,7 @@ export default async function QueuePage({ searchParams }) {
           <tbody>
             {rows.map((r) => (
               <tr key={r.id}>
-                <td style={{ ...td, color: new Date(r.next_run_at) <= new Date() ? '#fca5a5' : '#f8fafc' }}>{String(r.next_run_at)}</td>
+                <td style={{ ...td, color: new Date(r.next_run_at) <= new Date() ? '#fca5a5' : '#f8fafc' }}>{formatDateTime(r.next_run_at)}</td>
                 <td style={td}><Link href={`/campaigns/${r.campaign_id}`}>{r.campaign_name}</Link></td>
                 <td style={td}>{r.company_name || '-'}</td>
                 <td style={td}>{[r.first_name, r.last_name].filter(Boolean).join(' ') || r.email || '-'}</td>
