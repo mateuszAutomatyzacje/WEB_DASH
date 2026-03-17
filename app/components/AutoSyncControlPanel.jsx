@@ -29,7 +29,7 @@ export default function AutoSyncControlPanel({ campaignName, initial }) {
     try {
       const path = action === 'tick' ? '/api/admin/campaign/cron-sync' : '/api/admin/campaign/auto-sync';
       const body = action === 'tick'
-        ? { campaign_name: campaignName, interval_min: state.sync_interval_min || 10, limit: 25, dry_run: false }
+        ? { campaign_name: campaignName, interval_min: state.sync_interval_min || 10, dry_run: false }
         : { name: campaignName, action, interval_min: state.sync_interval_min || 10 };
       const res = await fetch(path, {
         method: 'POST',

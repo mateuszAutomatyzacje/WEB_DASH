@@ -3,6 +3,7 @@ import {
   DEFAULT_EVERGREEN_NAME,
   getCampaignRunnerConfig,
   normalizeEvergreenConfig,
+  normalizeStoredCampaignSettings,
   toStoredEvergreenRunner,
 } from '@/lib/evergreen-config.js';
 
@@ -37,13 +38,18 @@ export async function PUT(req) {
     const campaign = await resolveCampaign(sql, body);
     if (!campaign) throw new Error('Campaign not found');
 
+    const existingSettings = normalizeStoredCampaignSettings(campaign.settings);
     const config = normalizeEvergreenConfig(body, getCampaignRunnerConfig(campaign));
     const storedRunner = toStoredEvergreenRunner(config);
     const sendIntervalMin = config.sendIntervalMin;
+    const rawBatchLimit = body?.sendBatchLimit ?? body?.send_batch_limit ?? existingSettings.send_batch_limit ?? existingSettings.sendBatchLimit ?? 1;
+    const batchValue = Number(rawBatchLimit);
+    const sendBatchLimit = Number.isFinite(batchValue) ? Math.min(Math.max(Math.trunc(batchValue), 1), 200) : 1;
 
     const rows = await sql`
       update campaigns c
       set settings = jsonb_set(
+            jsonb_set(
             jsonb_set(
               jsonb_set(
                 case
@@ -55,12 +61,16 @@ export async function PUT(req) {
                 ${sql.json(storedRunner)}::jsonb,
                 true
               ),
-              '{mode}',
-              '"evergreen"'::jsonb,
+                '{mode}',
+                '"evergreen"'::jsonb,
+                true
+              ),
+              '{send_interval_min}',
+              to_jsonb(${sendIntervalMin}::int),
               true
             ),
-            '{send_interval_min}',
-            to_jsonb(${sendIntervalMin}::int),
+            '{send_batch_limit}',
+            to_jsonb(${sendBatchLimit}::int),
             true
           ),
           updated_at = now()
@@ -78,6 +88,7 @@ export async function PUT(req) {
       settings: updatedCampaign.settings,
       evergreen_runner: updatedCampaign.settings?.evergreen_runner || storedRunner,
       send_interval_min: updatedCampaign.settings?.send_interval_min ?? sendIntervalMin,
+      send_batch_limit: updatedCampaign.settings?.send_batch_limit ?? sendBatchLimit,
       runner_config: updatedConfig,
     });
   } catch (e) {

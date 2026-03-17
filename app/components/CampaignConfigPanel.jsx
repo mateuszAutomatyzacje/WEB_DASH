@@ -264,7 +264,7 @@ export default function CampaignConfigPanel({ initialCampaignId = '', initialCam
           </label>
           <div style={{ fontSize: 12, color: '#555' }}>
             This JSON edits only top-level campaign settings. Runner and webhook payload are controlled below. Optional keys:
-            <code> follow_up_1_delay_days </code> and <code> follow_up_2_delay_days </code>.
+            <code> follow_up_1_delay_days </code>, <code> follow_up_2_delay_days </code>, <code> send_batch_limit </code>.
           </div>
 
           <div style={{ marginTop: 8, padding: 12, border: '1px solid #eee', borderRadius: 8, display: 'grid', gap: 10 }}>

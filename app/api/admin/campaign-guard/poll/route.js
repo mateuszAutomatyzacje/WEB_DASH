@@ -5,6 +5,7 @@
 // - N8N_GUARD_TOKEN=SUPER_SECRET_TOKEN
 
 import { getSql } from '@/lib/db.js';
+import { syncCampaignLeads } from '@/lib/campaign-guard.js';
 
 const DEFAULT_CAMPAIGN_NAME = 'OUTSOURCING_IT_EVERGREEM';
 
@@ -41,54 +42,6 @@ async function ensureCampaign(sql, campaignId, campaignName) {
   `;
 
   return created[0].id;
-}
-
-async function syncCampaignLeads(sql, campaignId) {
-  const rows = await sql`
-    with src as (
-      select distinct ma.lead_id, ma.lead_contact_id
-      from public.message_attempts ma
-      where ma.lead_id is not null
-        and ma.lead_contact_id is not null
-    ), upserted as (
-      insert into public.campaign_leads (
-        campaign_id,
-        lead_id,
-        state,
-        active_contact_id,
-        contact_attempt_no,
-        next_run_at,
-        entered_at,
-        updated_at
-      )
-      select
-        ${campaignId}::uuid,
-        s.lead_id,
-        'in_campaign'::public.lead_status,
-        s.lead_contact_id,
-        1,
-        now(),
-        now(),
-        now()
-      from src s
-      on conflict (campaign_id, lead_id) do update
-      set
-        active_contact_id = excluded.active_contact_id,
-        state = case
-          when campaign_leads.state = 'stopped' then campaign_leads.state
-          else 'in_campaign'::public.lead_status
-        end,
-        updated_at = now()
-      returning (xmax = 0) as inserted
-    )
-    select
-      count(*)::int as total,
-      count(*) filter (where inserted)::int as inserted,
-      count(*) filter (where not inserted)::int as updated
-    from upserted
-  `;
-
-  return rows[0] || { total: 0, inserted: 0, updated: 0 };
 }
 
 export async function POST(req) {

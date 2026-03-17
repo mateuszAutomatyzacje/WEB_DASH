@@ -16,11 +16,15 @@ export async function POST(req) {
     const body = await req.json().catch(() => ({}));
     const campaignName = String(body?.campaign_name || DEFAULT_EVERGREEN_NAME).trim() || DEFAULT_EVERGREEN_NAME;
     const sql = getSql();
+    const limitRaw = body?.limit;
+    const limitValue = Number(limitRaw);
+    const limit = Number.isFinite(limitValue) ? Math.min(Math.max(limitValue, 1), 200) : null;
+
     const result = await runCampaignCronTick(sql, {
       campaignId: body?.campaign_id || null,
       campaignName,
       intervalMin: body?.interval_min || null,
-      limit: Math.min(Math.max(Number(body?.limit || 25), 1), 200),
+      limit,
       dryRun: Boolean(body?.dry_run ?? false),
       forceSync: body?.force_sync === true,
       forceSend: body?.force_send === true,
