@@ -30,17 +30,15 @@ export default function ScrapeSettingsPanel({ initial }) {
   const payload = useMemo(() => ({
     running: Boolean(cfg?.running),
     baseUrl: String(cfg?.base_url || '').trim(),
-    maxPages: Number(cfg?.max_pages ?? 3),
-    budgetMaxRequests: Number(cfg?.budget_max_requests ?? 120),
+    maxPages: numOrNull(cfg?.max_pages),
+    budgetMaxRequests: numOrNull(cfg?.budget_max_requests),
     crawl4aiEndpoint: String(cfg?.crawl4ai_endpoint || '').trim(),
-    rateSeconds: Number(cfg?.rate_seconds ?? 1),
-    jobTitle: (cfg?.job_title === null || typeof cfg?.job_title === 'undefined') ? null : String(cfg?.job_title),
-    city: (cfg?.city === null || typeof cfg?.city === 'undefined') ? null : String(cfg?.city),
+    rateSeconds: numOrNull(cfg?.rate_seconds),
+    jobTitle: (cfg?.job_title === null || typeof cfg?.job_title === 'undefined' || cfg?.job_title === '') ? null : String(cfg?.job_title),
+    city: (cfg?.city === null || typeof cfg?.city === 'undefined' || cfg?.city === '') ? null : String(cfg?.city),
     experienceLevel: cfg?.experience_level ? String(cfg.experience_level) : null,
     testMode: Boolean(cfg?.test_mode),
-    apolloMaxPeoplePerCompany: cfg?.apollo_max_people_per_company === null || typeof cfg?.apollo_max_people_per_company === 'undefined'
-      ? null
-      : Number(cfg.apollo_max_people_per_company),
+    apolloMaxPeoplePerCompany: numOrNull(cfg?.apollo_max_people_per_company),
   }), [cfg]);
 
   async function save() {
@@ -99,7 +97,7 @@ export default function ScrapeSettingsPanel({ initial }) {
             checked={Boolean(cfg?.running)}
             onChange={(e) => setCfg((c) => ({ ...c, running: e.target.checked }))}
           />
-          <span style={{ fontSize: 13, color: '#444' }}>Jeśli włączone, cron będzie odpalał run co godzinę</span>
+          <span style={{ fontSize: 13, color: '#444' }}>Jesli wlaczone, cron odpala run wg zewnetrznego harmonogramu</span>
         </label>
       </div>
 
@@ -155,9 +153,9 @@ export default function ScrapeSettingsPanel({ initial }) {
         <input
           style={input}
           type="number"
-          value={cfg?.max_pages ?? 3}
+          value={cfg?.max_pages ?? ''}
           min={1}
-          onChange={(e) => setCfg((c) => ({ ...c, max_pages: Number(e.target.value || 1) }))}
+          onChange={(e) => setCfg((c) => ({ ...c, max_pages: e.target.value === '' ? '' : Number(e.target.value) }))}
         />
       </div>
 
@@ -166,9 +164,9 @@ export default function ScrapeSettingsPanel({ initial }) {
         <input
           style={input}
           type="number"
-          value={cfg?.budget_max_requests ?? 120}
+          value={cfg?.budget_max_requests ?? ''}
           min={1}
-          onChange={(e) => setCfg((c) => ({ ...c, budget_max_requests: Number(e.target.value || 1) }))}
+          onChange={(e) => setCfg((c) => ({ ...c, budget_max_requests: e.target.value === '' ? '' : Number(e.target.value) }))}
         />
       </div>
 
@@ -178,9 +176,9 @@ export default function ScrapeSettingsPanel({ initial }) {
           style={input}
           type="number"
           step="0.1"
-          value={cfg?.rate_seconds ?? 1}
+          value={cfg?.rate_seconds ?? ''}
           min={0}
-          onChange={(e) => setCfg((c) => ({ ...c, rate_seconds: Number(e.target.value || 0) }))}
+          onChange={(e) => setCfg((c) => ({ ...c, rate_seconds: e.target.value === '' ? '' : Number(e.target.value) }))}
         />
       </div>
 

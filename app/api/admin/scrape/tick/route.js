@@ -1,4 +1,5 @@
 import { getSql } from '@/lib/db.js';
+import { ensureScrapeSettings } from '@/lib/scrape-settings.js';
 
 // This endpoint is meant to be pinged by an external cron (Railway/Render/UptimeRobot)
 // every hour (or every few minutes). It checks scrape_settings.running and triggers a run.
@@ -7,13 +8,7 @@ export async function POST() {
   try {
     const sql = getSql();
 
-    const rows = await sql`
-      select id, running
-      from public.scrape_settings
-      where id = 'global'
-      limit 1
-    `;
-    const cfg = rows?.[0];
+    const { settings: cfg } = await ensureScrapeSettings(sql);
     if (!cfg) throw new Error("Missing scrape_settings row id='global'");
 
     if (!cfg.running) {
@@ -23,13 +18,8 @@ export async function POST() {
     // Call internal run endpoint to reuse locking + update logic.
     // Use absolute URL if provided (needed in some serverless environments).
     const base = process.env.PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_BASE_URL || '';
-    const url = base ? `${base}/api/admin/scrape/run` : 'http://localhost/api/admin/scrape/run';
-
-    // If no base URL, we do the run inline (fallback): easiest is to call runner directly,
-    // but for now require PUBLIC_BASE_URL in production.
-    if (!base) {
-      return new Response('Missing PUBLIC_BASE_URL for tick -> run call', { status: 400 });
-    }
+    if (!base) return new Response('Missing PUBLIC_BASE_URL for tick -> run call', { status: 400 });
+    const url = `${base}/api/admin/scrape/run`;
 
     const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store' });
     const text = await res.text();

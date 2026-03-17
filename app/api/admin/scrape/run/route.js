@@ -1,4 +1,5 @@
 import { getSql } from '@/lib/db.js';
+import { ensureScrapeSettings } from '@/lib/scrape-settings.js';
 
 function buildRunnerPayload(cfg) {
   return {
@@ -20,18 +21,11 @@ export async function POST() {
   try {
     const sql = getSql();
 
-    const rows = await sql`
-      select *
-      from public.scrape_settings
-      where id = 'global'
-      limit 1
-    `;
-    const cfg = rows?.[0];
+    const { settings: cfg } = await ensureScrapeSettings(sql);
     if (!cfg) throw new Error("Missing scrape_settings row id='global'");
 
-    // WebDash default (can be overridden by env)
-    const runnerWebhookUrl = process.env.JUSTJOIN_SCRAPER_WEBHOOK_URL
-      || 'https://n8n-production-c340.up.railway.app/webhook/efxblr-test-trigger';
+    const runnerWebhookUrl = String(process.env.JUSTJOIN_SCRAPER_WEBHOOK_URL || '').trim();
+    if (!runnerWebhookUrl) throw new Error('Missing JUSTJOIN_SCRAPER_WEBHOOK_URL');
 
     const token = process.env.JUSTJOIN_SCRAPER_WEBHOOK_TOKEN || null;
 
