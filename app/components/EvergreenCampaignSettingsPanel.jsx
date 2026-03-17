@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { SEND_INTERVAL_OPTIONS } from '@/lib/evergreen-config.js';
 
 const DEFAULTS = {
   campaignName: 'OUTSOURCING_IT_EVERGREEM',
@@ -43,7 +44,7 @@ function normalizeCfg(raw = {}) {
     runId: String(raw.runId ?? DEFAULTS.runId),
     crawl4aiHealthPath: String(raw.crawl4aiHealthPath ?? DEFAULTS.crawl4aiHealthPath).trim(),
     webhookUrl: String(raw.webhookUrl ?? DEFAULTS.webhookUrl).trim(),
-    sendIntervalMin: [5, 10, 15].includes(Number(raw.sendIntervalMin)) ? Number(raw.sendIntervalMin) : DEFAULTS.sendIntervalMin,
+    sendIntervalMin: SEND_INTERVAL_OPTIONS.includes(Number(raw.sendIntervalMin)) ? Number(raw.sendIntervalMin) : DEFAULTS.sendIntervalMin,
   };
 }
 
@@ -106,7 +107,7 @@ export default function EvergreenCampaignSettingsPanel({ initialName, initialCon
     runId: String(cfg.runId || '').trim(),
     crawl4aiHealthPath: String(cfg.crawl4aiHealthPath || '').trim(),
     webhookUrl: String(cfg.webhookUrl || '').trim(),
-    sendIntervalMin: [5, 10, 15].includes(Number(cfg.sendIntervalMin)) ? Number(cfg.sendIntervalMin) : DEFAULTS.sendIntervalMin,
+    sendIntervalMin: SEND_INTERVAL_OPTIONS.includes(Number(cfg.sendIntervalMin)) ? Number(cfg.sendIntervalMin) : DEFAULTS.sendIntervalMin,
   }), [cfg]);
 
   async function saveOnly() {
@@ -168,9 +169,9 @@ export default function EvergreenCampaignSettingsPanel({ initialName, initialCon
       <div style={row}>
         <div style={label}>sendIntervalMin</div>
         <select style={input} value={cfg.sendIntervalMin} onChange={(e) => setCfg((c) => normalizeCfg({ ...c, sendIntervalMin: Number(e.target.value) }))}>
-          <option value={5}>5 min</option>
-          <option value={10}>10 min</option>
-          <option value={15}>15 min</option>
+          {SEND_INTERVAL_OPTIONS.map((opt) => (
+            <option key={opt} value={opt}>{opt} min</option>
+          ))}
         </select>
       </div>
       <div style={row}>
