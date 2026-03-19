@@ -16,7 +16,7 @@ export default function AutoSyncControlPanel({ campaignName, initial }) {
       ...prev,
       enabled: typeof data?.auto_sync_enabled === 'boolean' ? data.auto_sync_enabled : Boolean(s.auto_sync_enabled ?? prev.enabled),
       status: s.auto_sync_status || data?.status || fallbackStatus || prev.status || 'unknown',
-      sync_interval_min: Number(s.sync_interval_min || prev.sync_interval_min || 10),
+      send_interval_min: Number(s.send_interval_min || prev.send_interval_min || 10),
       last_sync_at: s.last_sync_at || data?.next_expected_run_at || prev.last_sync_at || '',
       last_sync_result: s.last_sync_result || data?.sync || prev.last_sync_result || null,
       updated_at: s.auto_sync_updated_at || new Date().toISOString(),
@@ -29,8 +29,8 @@ export default function AutoSyncControlPanel({ campaignName, initial }) {
     try {
       const path = action === 'tick' ? '/api/admin/campaign/cron-sync' : '/api/admin/campaign/auto-sync';
       const body = action === 'tick'
-        ? { campaign_name: campaignName, interval_min: state.sync_interval_min || 10, dry_run: false }
-        : { name: campaignName, action, interval_min: state.sync_interval_min || 10 };
+        ? { campaign_name: campaignName, interval_min: state.send_interval_min || 10, dry_run: false }
+        : { name: campaignName, action, interval_min: state.send_interval_min || 10 };
       const res = await fetch(path, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -59,10 +59,10 @@ export default function AutoSyncControlPanel({ campaignName, initial }) {
       <div style={{ display: 'grid', gap: 8, fontSize: 14, marginBottom: 14 }}>
         <div><b>Enabled:</b> {state.enabled ? 'yes' : 'no'}</div>
         <div><b>Status:</b> <span style={{ color: state.status === 'running' ? '#86efac' : state.status === 'error' ? '#fca5a5' : '#fdba74', fontWeight: 700 }}>{state.status || 'unknown'}</span></div>
-        <div><b>Interval:</b> every {state.sync_interval_min || 10} min</div>
+        <div><b>Interval:</b> every {state.send_interval_min || 10} min</div>
         <div><b>Last sync:</b> {formatDateTime(state.last_sync_at)}</div>
         <div><b>Last result:</b> {state.last_sync_result ? `inserted=${state.last_sync_result.inserted ?? 0}, updated=${state.last_sync_result.updated ?? 0}, tagged=${state.last_sync_result.tagged_attempts ?? 0}` : '-'}</div>
-        <div><b>Scheduler:</b> WebDash ma teraz wewnetrzny scheduler procesu, ktory sam sprawdza due kampanie co ok. 60 sekund i odpala tick wedlug interwalu z DB. Dotyczy to tylko kampanii evergreen ze statusem <code>running</code>. Zewnetrzny cron na <code>POST /api/admin/campaign/cron-sync</code> jest nadal opcjonalny.</div>
+        <div><b>Scheduler:</b> WebDash ma teraz wewnetrzny scheduler procesu, ktory sam sprawdza due kampanie co ok. 60 sekund i odpala tick wedlug <code>send_interval_min</code> z DB. Dotyczy to tylko kampanii evergreen ze statusem <code>running</code>. Zewnetrzny cron na <code>POST /api/admin/campaign/cron-sync</code> jest nadal opcjonalny.</div>
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button onClick={() => run('start')} disabled={loading} style={{ background: '#111827', color: '#f8fafc', border: '1px solid #374151', borderRadius: 8, padding: '8px 10px' }}>{loading ? '...' : 'Start Auto Sync'}</button>

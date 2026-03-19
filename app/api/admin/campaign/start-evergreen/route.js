@@ -5,7 +5,9 @@ import {
   getCampaignRunnerConfig,
   getStoredEvergreenRunner,
   normalizeEvergreenConfig,
+  normalizeStoredCampaignSettings,
   toStoredEvergreenRunner,
+  validateEvergreenRuntimeConfig,
 } from '@/lib/evergreen-config.js';
 
 async function resolveCampaign(sql, body = {}) {
@@ -41,35 +43,26 @@ export async function POST(req) {
     const campaign = await resolveCampaign(sql, body);
     if (!campaign) throw new Error('Campaign not found');
 
+    const existingSettings = normalizeStoredCampaignSettings(campaign.settings);
     const hasStoredRunner = Boolean(getStoredEvergreenRunner(campaign));
-    const config = hasStoredRunner
-      ? getCampaignRunnerConfig(campaign)
-      : normalizeEvergreenConfig(body, getCampaignRunnerConfig(campaign));
-    const storedRunner = toStoredEvergreenRunner(config);
+    const config = validateEvergreenRuntimeConfig(
+      hasStoredRunner
+        ? getCampaignRunnerConfig(campaign, { strict: true })
+        : normalizeEvergreenConfig(body, getCampaignRunnerConfig(campaign, { strict: true }), { strict: true }),
+    );
+    const storedRunner = toStoredEvergreenRunner(config, { strict: true });
+    const mergedSettings = {
+      ...existingSettings,
+      mode: 'evergreen',
+      evergreen_runner: storedRunner,
+      send_interval_min: config.sendIntervalMin,
+    };
+    delete mergedSettings.sync_interval_min;
 
     const rows = await sql`
       update campaigns
       set status = case when ${isTestMode} then status else 'running'::campaign_status end,
-          settings = jsonb_set(
-            jsonb_set(
-              jsonb_set(
-                case
-                  when settings is null then '{}'::jsonb
-                  when jsonb_typeof(settings::jsonb) = 'object' then settings::jsonb
-                  else '{}'::jsonb
-                end,
-                '{evergreen_runner}',
-                ${sql.json(storedRunner)}::jsonb,
-                true
-              ),
-              '{mode}',
-              '"evergreen"'::jsonb,
-              true
-            ),
-            '{send_interval_min}',
-            to_jsonb(${config.sendIntervalMin}::int),
-            true
-          ),
+          settings = ${sql.json(mergedSettings)}::jsonb,
           updated_at = now()
       where id = ${campaign.id}
       returning id, name, status::text as status, settings, updated_at

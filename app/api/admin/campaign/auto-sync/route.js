@@ -1,13 +1,12 @@
 import { getSql } from '@/lib/db.js';
-import { normalizeStoredCampaignSettings } from '@/lib/evergreen-config.js';
+import { DEFAULT_EVERGREEN_NAME, normalizeStoredCampaignSettings } from '@/lib/evergreen-config.js';
 
-const DEFAULT_NAME = 'OUTSOURCING_IT_EVERGREEM';
 const ALLOWED = new Set(['start', 'stop']);
 
 export async function POST(req) {
   try {
     const body = await req.json().catch(() => ({}));
-    const name = String(body?.name || DEFAULT_NAME).trim() || DEFAULT_NAME;
+    const name = String(body?.name || DEFAULT_EVERGREEN_NAME).trim() || DEFAULT_EVERGREEN_NAME;
     const action = String(body?.action || '').trim();
     const intervalMin = Number(body?.interval_min || 10);
 
@@ -27,10 +26,11 @@ export async function POST(req) {
     const mergedSettings = {
       ...normalizeStoredCampaignSettings(existing[0]?.settings),
       auto_sync_enabled: action === 'start',
-      sync_interval_min: intervalMin,
+      send_interval_min: intervalMin,
       auto_sync_status: action === 'start' ? 'running' : 'paused',
       auto_sync_updated_at: new Date().toISOString(),
     };
+    delete mergedSettings.sync_interval_min;
 
     const rows = await sql`
       update campaigns

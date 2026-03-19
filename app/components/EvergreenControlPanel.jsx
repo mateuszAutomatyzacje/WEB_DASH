@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import { DEFAULT_EVERGREEN_NAME } from '@/lib/evergreen-config.js';
 
 const defaultBody = {
-  campaign_name: 'OUTSOURCING_IT_EVERGREEM',
+  campaign_name: DEFAULT_EVERGREEN_NAME,
   campaign_id: null,
   limit: 25,
 };

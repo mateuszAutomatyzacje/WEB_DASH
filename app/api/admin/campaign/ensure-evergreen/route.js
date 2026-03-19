@@ -1,17 +1,17 @@
 import { getSql } from '@/lib/db.js';
+import { DEFAULT_EVERGREEN_NAME, normalizeStoredCampaignSettings } from '@/lib/evergreen-config.js';
 
 export async function POST(req) {
   try {
     const body = await req.json().catch(() => ({}));
     const campaignId = String(body?.campaign_id || body?.campaignId || '').trim();
-    const name = (body?.name || 'OUTSOURCING_IT_EVERGREEM').trim();
+    const name = String(body?.name || DEFAULT_EVERGREEN_NAME).trim() || DEFAULT_EVERGREEN_NAME;
     const description = 'Kampania ciągła dla nowych leadów';
     const settings = {
       mode: 'evergreen',
       send_interval_min: 5,
       auto_enqueue: true,
       auto_sync_enabled: true,
-      sync_interval_min: 10,
       auto_sync_status: 'running',
     };
 
@@ -30,11 +30,25 @@ export async function POST(req) {
     }
 
     if (resolvedId) {
+      const existingRows = await sql`
+        select settings
+        from campaigns
+        where id = ${resolvedId}
+        limit 1
+      `;
+      if (!existingRows.length) throw new Error('campaign not found');
+
+      const mergedSettings = {
+        ...normalizeStoredCampaignSettings(existingRows[0]?.settings),
+        ...settings,
+      };
+      delete mergedSettings.sync_interval_min;
+
       const rows = await sql`
         update campaigns
         set status = 'running',
             description = ${description},
-            settings = coalesce(settings, '{}'::jsonb) || ${JSON.stringify(settings)}::jsonb,
+            settings = ${sql.json(mergedSettings)}::jsonb,
             updated_at = now()
         where id = ${resolvedId}
         returning id, name, status::text as status

@@ -2,7 +2,8 @@ import { getSql } from '@/lib/db.js';
 import { ensureScrapeSettings, getScrapeIntervalMin } from '@/lib/scrape-settings.js';
 
 // This endpoint is meant to be pinged by an external cron (Railway/Render/UptimeRobot)
-// every hour (or every few minutes). It checks scrape_settings.running and triggers a run.
+// on a frequent cadence. It checks scrape_settings.running and triggers a run when the
+// campaign-configured send interval is due.
 
 export async function POST() {
   try {
@@ -17,7 +18,7 @@ export async function POST() {
 
     const schedule = await getScrapeIntervalMin(sql);
     if (!schedule.intervalMin) {
-      return new Response('Missing sync_interval_min/send_interval_min for scraper schedule', { status: 400 });
+      return new Response('Missing send_interval_min for scraper schedule', { status: 400 });
     }
 
     const lastRunMs = cfg.last_run_at ? new Date(cfg.last_run_at).getTime() : null;

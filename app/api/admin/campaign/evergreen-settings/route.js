@@ -5,6 +5,7 @@ import {
   normalizeEvergreenConfig,
   normalizeStoredCampaignSettings,
   toStoredEvergreenRunner,
+  validateEvergreenRuntimeConfig,
 } from '@/lib/evergreen-config.js';
 
 async function resolveCampaign(sql, body = {}) {
@@ -39,40 +40,26 @@ export async function PUT(req) {
     if (!campaign) throw new Error('Campaign not found');
 
     const existingSettings = normalizeStoredCampaignSettings(campaign.settings);
-    const config = normalizeEvergreenConfig(body, getCampaignRunnerConfig(campaign));
-    const storedRunner = toStoredEvergreenRunner(config);
+    const config = validateEvergreenRuntimeConfig(
+      normalizeEvergreenConfig(body, getCampaignRunnerConfig(campaign, { strict: true }), { strict: true }),
+    );
+    const storedRunner = toStoredEvergreenRunner(config, { strict: true });
     const sendIntervalMin = config.sendIntervalMin;
     const rawBatchLimit = body?.sendBatchLimit ?? body?.send_batch_limit ?? existingSettings.send_batch_limit ?? existingSettings.sendBatchLimit ?? 1;
     const batchValue = Number(rawBatchLimit);
     const sendBatchLimit = Number.isFinite(batchValue) ? Math.min(Math.max(Math.trunc(batchValue), 1), 200) : 1;
+    const mergedSettings = {
+      ...existingSettings,
+      mode: 'evergreen',
+      evergreen_runner: storedRunner,
+      send_interval_min: sendIntervalMin,
+      send_batch_limit: sendBatchLimit,
+    };
+    delete mergedSettings.sync_interval_min;
 
     const rows = await sql`
       update campaigns c
-      set settings = jsonb_set(
-            jsonb_set(
-            jsonb_set(
-              jsonb_set(
-                case
-                  when c.settings is null then '{}'::jsonb
-                  when jsonb_typeof(c.settings::jsonb) = 'object' then c.settings::jsonb
-                  else '{}'::jsonb
-                end,
-                '{evergreen_runner}',
-                ${sql.json(storedRunner)}::jsonb,
-                true
-              ),
-                '{mode}',
-                '"evergreen"'::jsonb,
-                true
-              ),
-              '{send_interval_min}',
-              to_jsonb(${sendIntervalMin}::int),
-              true
-            ),
-            '{send_batch_limit}',
-            to_jsonb(${sendBatchLimit}::int),
-            true
-          ),
+      set settings = ${sql.json(mergedSettings)}::jsonb,
           updated_at = now()
       where c.id = ${campaign.id}
       returning c.id, c.name, c.description, c.status::text as status, c.settings, c.updated_at

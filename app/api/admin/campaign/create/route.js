@@ -9,15 +9,28 @@ function normalizeTopLevelSettings(value) {
 
 function mergeCampaignSettings(existingSettings, incomingSettings) {
   const existing = normalizeStoredCampaignSettings(existingSettings);
+  const incomingHasSendInterval = Boolean(incomingSettings)
+    && typeof incomingSettings === 'object'
+    && !Array.isArray(incomingSettings)
+    && (
+      Object.prototype.hasOwnProperty.call(incomingSettings, 'send_interval_min')
+      || Object.prototype.hasOwnProperty.call(incomingSettings, 'sync_interval_min')
+    );
   const incoming = normalizeTopLevelSettings(incomingSettings);
   const existingRunner = getStoredEvergreenRunner(existing);
-
-  return {
+  const merged = {
     ...existing,
     ...incoming,
     evergreen_runner: existingRunner || existing?.evergreen_runner,
-    send_interval_min: existing?.send_interval_min,
   };
+
+  if (!incomingHasSendInterval) {
+    if (typeof existing?.send_interval_min !== 'undefined') merged.send_interval_min = existing.send_interval_min;
+    else delete merged.send_interval_min;
+  }
+
+  delete merged.sync_interval_min;
+  return merged;
 }
 
 export async function POST(req) {

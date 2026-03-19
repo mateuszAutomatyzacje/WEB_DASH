@@ -4,11 +4,10 @@ import AutoSyncControlPanel from '@/app/components/AutoSyncControlPanel.jsx';
 import EmailSendingControlPanel from '@/app/components/EmailSendingControlPanel.jsx';
 import EvergreenControlPanel from '@/app/components/EvergreenControlPanel.jsx';
 import { getCampaignRuntimeState, getCampaignSendStats } from '@/lib/campaign-guard.js';
+import { DEFAULT_EVERGREEN_NAME } from '@/lib/evergreen-config.js';
 import { formatDateTime } from '@/lib/time.js';
 
 export const dynamic = 'force-dynamic';
-
-const CAMPAIGN_NAME = 'OUTSOURCING_IT_EVERGREEM';
 
 export default async function EvergreenSyncPage() {
   const sql = getSql();
@@ -16,7 +15,7 @@ export default async function EvergreenSyncPage() {
   const campaignRows = await sql`
     select id, name, status::text as status, description, settings, created_at, updated_at
     from public.campaigns
-    where name = ${CAMPAIGN_NAME}
+    where name = ${DEFAULT_EVERGREEN_NAME}
     order by created_at desc
     limit 1
   `;
@@ -26,7 +25,7 @@ export default async function EvergreenSyncPage() {
   if (!campaign) {
     return (
       <AppShell title="Evergreen sync monitor" subtitle="Nie znaleziono glownej kampanii evergreen w tabeli campaigns.">
-        <Card>Brak kampanii <b>{CAMPAIGN_NAME}</b> w tabeli campaigns.</Card>
+        <Card>Brak kampanii <b>{DEFAULT_EVERGREEN_NAME}</b> w tabeli campaigns.</Card>
       </AppShell>
     );
   }
@@ -162,7 +161,7 @@ export default async function EvergreenSyncPage() {
           initial={{
             enabled: runtime.auto_sync_enabled,
             status: runtime.auto_sync_status || campaign.status || 'unknown',
-            sync_interval_min: Number(runtime.sync_interval_min || 10),
+            send_interval_min: Number(runtime.send_interval_min || 10),
             last_sync_at: runtime.last_sync_at || '',
             last_sync_result: settings.last_sync_result || null,
           }}

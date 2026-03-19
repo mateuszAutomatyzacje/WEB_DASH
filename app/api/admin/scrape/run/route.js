@@ -25,10 +25,8 @@ export async function POST() {
     if (!cfg) throw new Error("Missing scrape_settings row id='global'");
 
     const resolvedWebhook = await getScrapeWebhookUrl(sql);
-    const runnerWebhookUrl = resolvedWebhook.webhookUrl || String(process.env.JUSTJOIN_SCRAPER_WEBHOOK_URL || '').trim();
-    if (!runnerWebhookUrl) {
-      throw new Error('Missing evergreen_runner.webhook_url and JUSTJOIN_SCRAPER_WEBHOOK_URL');
-    }
+    const runnerWebhookUrl = resolvedWebhook.webhookUrl;
+    if (!runnerWebhookUrl) throw new Error('Missing evergreen_runner.webhook_url');
 
     const token = process.env.JUSTJOIN_SCRAPER_WEBHOOK_TOKEN || null;
 

@@ -1,4 +1,5 @@
 import { getSql } from '@/lib/db.js';
+import { DEFAULT_EVERGREEN_NAME } from '@/lib/evergreen-config.js';
 
 const ALLOWED = new Set(['running', 'stopped', 'paused']);
 
@@ -6,7 +7,7 @@ export async function POST(req) {
   try {
     const body = await req.json().catch(() => ({}));
     const campaignId = String(body?.campaign_id || body?.campaignId || '').trim();
-    const name = (body?.name || 'OUTSOURCING_IT_EVERGREEM').trim();
+    const name = (body?.name || DEFAULT_EVERGREEN_NAME).trim();
     const status = (body?.status || '').trim();
 
     if (!ALLOWED.has(status)) throw new Error('invalid status');

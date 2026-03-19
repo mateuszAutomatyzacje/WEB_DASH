@@ -52,7 +52,7 @@ export default function CampaignConfigPanel({ initialCampaignId = '', initialCam
   const [name, setName] = useState(initialCampaignName || DEFAULT_EVERGREEN_NAME);
   const [description, setDescription] = useState(DEFAULT_DESCRIPTION);
   const [settingsText, setSettingsText] = useState('');
-  const [config, setConfig] = useState(() => normalizeEvergreenConfig());
+  const [config, setConfig] = useState(() => normalizeEvergreenConfig({}, {}, { strict: true }));
   const [msg, setMsg] = useState('');
   const [loading, setLoading] = useState(false);
   const [currentStatus, setCurrentStatus] = useState('unknown');
@@ -63,7 +63,7 @@ export default function CampaignConfigPanel({ initialCampaignId = '', initialCam
     () => String(name || DEFAULT_EVERGREEN_NAME).trim() || DEFAULT_EVERGREEN_NAME,
     [name],
   );
-  const normalizedConfig = useMemo(() => normalizeEvergreenConfig(config), [config]);
+  const normalizedConfig = useMemo(() => normalizeEvergreenConfig(config, {}, { strict: true }), [config]);
 
   async function fetchCampaign(id) {
     const res = await fetch(`/api/admin/campaign/get-status?campaignId=${encodeURIComponent(id)}`, { cache: 'no-store' });
@@ -115,7 +115,7 @@ export default function CampaignConfigPanel({ initialCampaignId = '', initialCam
   }, [initialCampaignId]);
 
   function setConfigField(key, value) {
-    setConfig((prev) => normalizeEvergreenConfig({ ...prev, [key]: value }));
+    setConfig((prev) => normalizeEvergreenConfig({ ...prev, [key]: value }, {}, { strict: true }));
   }
 
   async function callApi(path, body, { reload = true } = {}) {
@@ -265,6 +265,9 @@ export default function CampaignConfigPanel({ initialCampaignId = '', initialCam
           <div style={{ fontSize: 12, color: '#555' }}>
             This JSON edits only top-level campaign settings. Runner and webhook payload are controlled below. Optional keys:
             <code> follow_up_1_delay_days </code>, <code> follow_up_2_delay_days </code>, <code> send_batch_limit </code>.
+          </div>
+          <div style={{ fontSize: 12, color: '#555' }}>
+            <code>send_interval_min</code> controls the evergreen scheduler and scraper cadence for this campaign.
           </div>
 
           <div style={{ marginTop: 8, padding: 12, border: '1px solid #eee', borderRadius: 8, display: 'grid', gap: 10 }}>

@@ -3,6 +3,7 @@ import CampaignConfigPanel from '@/app/components/CampaignConfigPanel.jsx';
 import AdminButton from '@/app/components/AdminButton.jsx';
 import { AppShell, Card, FilterForm, FiltersGrid, Field, Pagination, Table, inputStyle, td, th } from '@/app/components/AppShell.jsx';
 import { getSql } from '@/lib/db.js';
+import { DEFAULT_EVERGREEN_NAME } from '@/lib/evergreen-config.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,7 +32,7 @@ export default async function CampaignsPage({ searchParams }) {
   const initialCampaignRows = await sql`
     select id, name
     from public.campaigns
-    where name = 'OUTSOURCING_IT_EVERGREEM'
+    where name = ${DEFAULT_EVERGREEN_NAME}
     order by created_at desc
     limit 1
   `;
@@ -149,7 +150,7 @@ export default async function CampaignsPage({ searchParams }) {
 
   return (
     <AppShell title="Campaigns" subtitle="Widok kampanii z filtrowaniem po statusie, ryzyku i wyszukiwaniem po nazwie — plus szybkie klonowanie kampanii.">
-      <CampaignConfigPanel initialCampaignId={initialCampaign?.id || ''} initialCampaignName={initialCampaign?.name || 'OUTSOURCING_IT_EVERGREEM'} />
+      <CampaignConfigPanel initialCampaignId={initialCampaign?.id || ''} initialCampaignName={initialCampaign?.name || DEFAULT_EVERGREEN_NAME} />
 
       <FilterForm>
         <FiltersGrid>

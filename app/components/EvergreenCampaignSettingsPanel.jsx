@@ -1,25 +1,15 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { SEND_INTERVAL_OPTIONS } from '@/lib/evergreen-config.js';
+import {
+  DEFAULT_EVERGREEN_NAME,
+  DEFAULT_EVERGREEN_RUNNER_CONFIG,
+  SEND_INTERVAL_OPTIONS,
+} from '@/lib/evergreen-config.js';
 
 const DEFAULTS = {
-  campaignName: 'OUTSOURCING_IT_EVERGREEM',
-  baseUrl: 'https://justjoin.it/job-offers',
-  maxPages: 3,
-  budgetMaxRequests: 120,
-  crawl4aiEndpoint: 'https://crawl4ai-production-0915.up.railway.app/crawl',
-  rateSeconds: 1,
-  jobTitle: '',
-  city: 'Poland',
-  experienceLevel: '',
-  testMode: false,
-  apolloApiKey: '',
-  apolloMaxPeoplePerCompany: 3,
-  runId: '',
-  crawl4aiHealthPath: '/health',
-  webhookUrl: 'https://n8n-production-c340.up.railway.app/webhook-test/efxblr-test-trigger',
-  sendIntervalMin: 5,
+  campaignName: DEFAULT_EVERGREEN_NAME,
+  ...DEFAULT_EVERGREEN_RUNNER_CONFIG,
 };
 
 function toNum(value, fallback) {

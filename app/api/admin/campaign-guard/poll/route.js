@@ -6,8 +6,7 @@
 
 import { getSql } from '@/lib/db.js';
 import { syncCampaignLeads } from '@/lib/campaign-guard.js';
-
-const DEFAULT_CAMPAIGN_NAME = 'OUTSOURCING_IT_EVERGREEM';
+import { DEFAULT_EVERGREEN_NAME } from '@/lib/evergreen-config.js';
 
 async function ensureCampaign(sql, campaignId, campaignName) {
   if (campaignId) {
@@ -66,7 +65,7 @@ export async function POST(req) {
     }
 
     const sql = getSql();
-    const campaignName = String(body?.campaign_name || DEFAULT_CAMPAIGN_NAME).trim() || DEFAULT_CAMPAIGN_NAME;
+    const campaignName = String(body?.campaign_name || DEFAULT_EVERGREEN_NAME).trim() || DEFAULT_EVERGREEN_NAME;
     const resolvedCampaignId = await ensureCampaign(sql, body?.campaign_id || null, campaignName);
     const syncResult = await syncCampaignLeads(sql, resolvedCampaignId);
 
