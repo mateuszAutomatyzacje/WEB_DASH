@@ -1,4 +1,5 @@
 import { getSql } from '@/lib/db.js';
+import { logApplicationEventSafe } from '@/lib/application-logs.js';
 import { DEFAULT_EVERGREEN_NAME, normalizeStoredCampaignSettings } from '@/lib/evergreen-config.js';
 import { getCampaignRuntimeState, getCampaignSendStats, resolveOrCreateCampaign, runCampaignGuard, triggerSmtpWebhook } from '@/lib/campaign-guard.js';
 
@@ -36,16 +37,20 @@ function buildSampleTestPayload(campaign, timestamp) {
 }
 
 export async function POST(req) {
+  let sql = null;
+  let campaign = null;
+  let campaignName = DEFAULT_EVERGREEN_NAME;
+  let action = '';
   try {
     const body = await req.json().catch(() => ({}));
-    const action = String(body?.action || '').trim();
-    const campaignName = String(body?.campaign_name || body?.name || DEFAULT_EVERGREEN_NAME).trim() || DEFAULT_EVERGREEN_NAME;
+    action = String(body?.action || '').trim();
+    campaignName = String(body?.campaign_name || body?.name || DEFAULT_EVERGREEN_NAME).trim() || DEFAULT_EVERGREEN_NAME;
     const limit = Math.min(Math.max(Number(body?.limit || 10), 1), 200);
 
     if (!ALLOWED.has(action)) throw new Error('invalid action');
 
-    const sql = getSql();
-    const campaign = await resolveOrCreateCampaign(sql, {
+    sql = getSql();
+    campaign = await resolveOrCreateCampaign(sql, {
       campaignId: body?.campaign_id || null,
       campaignName,
       source: 'webdash_auto_send',
@@ -64,6 +69,20 @@ export async function POST(req) {
         auto_send_status: action === 'start' ? 'running' : 'paused',
         auto_send_updated_at: nowIso,
       };
+
+      await logApplicationEventSafe(sql, {
+        level: 'info',
+        scope: 'api',
+        source: 'webdash_auto_send',
+        eventType: 'auto_send_toggled',
+        message: `Auto email sending ${action === 'start' ? 'enabled' : 'paused'} for ${campaign.name}.`,
+        campaignId: campaign.id,
+        campaignName: campaign.name,
+        details: {
+          action,
+          send_email_interval_min: runtime.send_email_interval_min,
+        },
+      });
     }
 
     if (action === 'test') {
@@ -118,9 +137,36 @@ export async function POST(req) {
           timestamp: nowIso,
         },
       };
+
+      await logApplicationEventSafe(sql, {
+        level: 'success',
+        scope: 'api',
+        source: 'webdash_auto_send',
+        eventType: 'manual_test_send_completed',
+        message: `Manual test send completed for ${campaign.name}. Sample email sent to ${TEST_WEBHOOK_RECIPIENT}.`,
+        campaignId: campaign.id,
+        campaignName: campaign.name,
+        details: {
+          sample_recipient: TEST_WEBHOOK_RECIPIENT,
+          webhook_url: webhook.webhook_url,
+        },
+      });
     }
 
     if (action === 'send_now') {
+      await logApplicationEventSafe(sql, {
+        level: 'info',
+        scope: 'api',
+        source: 'webdash_auto_send',
+        eventType: 'manual_send_now_requested',
+        message: `Manual live send requested for ${campaign.name}.`,
+        campaignId: campaign.id,
+        campaignName: campaign.name,
+        details: {
+          limit,
+        },
+      });
+
       result = await runCampaignGuard(sql, {
         campaignId: campaign.id,
         campaignName: campaign.name,
@@ -194,6 +240,21 @@ export async function POST(req) {
       results: result?.results || [],
     });
   } catch (e) {
+    if (sql) {
+      await logApplicationEventSafe(sql, {
+        level: 'error',
+        scope: 'api',
+        source: 'webdash_auto_send',
+        eventType: 'auto_send_action_failed',
+        message: `Auto-send action ${action || '-'} failed for ${campaign?.name || campaignName}: ${String(e?.message || e)}`,
+        campaignId: campaign?.id || null,
+        campaignName: campaign?.name || campaignName || null,
+        details: {
+          action: action || null,
+          error: String(e?.message || e),
+        },
+      });
+    }
     return new Response(String(e?.message || e), { status: 400 });
   }
 }

@@ -1,18 +1,22 @@
 import { getSql } from '@/lib/db.js';
+import { logApplicationEventSafe } from '@/lib/application-logs.js';
 import { DEFAULT_EVERGREEN_NAME, normalizeStoredCampaignSettings } from '@/lib/evergreen-config.js';
 
 const ALLOWED = new Set(['start', 'stop']);
 
 export async function POST(req) {
+  let sql = null;
+  let name = DEFAULT_EVERGREEN_NAME;
+  let action = '';
   try {
     const body = await req.json().catch(() => ({}));
-    const name = String(body?.name || DEFAULT_EVERGREEN_NAME).trim() || DEFAULT_EVERGREEN_NAME;
-    const action = String(body?.action || '').trim();
+    name = String(body?.name || DEFAULT_EVERGREEN_NAME).trim() || DEFAULT_EVERGREEN_NAME;
+    action = String(body?.action || '').trim();
     const intervalMin = Number(body?.interval_min || 30);
 
     if (!ALLOWED.has(action)) throw new Error('invalid action');
 
-    const sql = getSql();
+    sql = getSql();
     const existing = await sql`
       select id, name, status::text as status, settings
       from campaigns
@@ -41,8 +45,36 @@ export async function POST(req) {
       returning id, name, status::text as status, settings
     `;
 
+    await logApplicationEventSafe(sql, {
+      level: 'info',
+      scope: 'api',
+      source: 'webdash_auto_sync',
+      eventType: 'auto_sync_toggled',
+      message: `Auto lead sync ${action === 'start' ? 'enabled' : 'paused'} for ${rows[0].name}.`,
+      campaignId: rows[0].id,
+      campaignName: rows[0].name,
+      details: {
+        action,
+        lead_sync_interval_min: intervalMin,
+      },
+    });
+
     return Response.json({ ok: true, action, ...rows[0] });
   } catch (e) {
+    if (sql) {
+      await logApplicationEventSafe(sql, {
+        level: 'error',
+        scope: 'api',
+        source: 'webdash_auto_sync',
+        eventType: 'auto_sync_action_failed',
+        message: `Auto-sync action ${action || '-'} failed for ${name}: ${String(e?.message || e)}`,
+        campaignName: name,
+        details: {
+          action: action || null,
+          error: String(e?.message || e),
+        },
+      });
+    }
     return new Response(String(e?.message || e), { status: 400 });
   }
 }

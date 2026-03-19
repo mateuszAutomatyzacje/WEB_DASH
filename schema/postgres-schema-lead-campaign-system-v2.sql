@@ -205,6 +205,22 @@ CREATE TABLE IF NOT EXISTS message_events (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS app_runtime_logs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  level text NOT NULL DEFAULT 'info',
+  scope text NOT NULL DEFAULT 'app',
+  source text,
+  event_type text NOT NULL,
+  message text NOT NULL,
+  campaign_id uuid,
+  campaign_name text,
+  lead_id uuid,
+  lead_contact_id uuid,
+  message_attempt_id uuid,
+  details jsonb NOT NULL DEFAULT '{}',
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
 -- ========= HANDOFF TO WORKERS (v2 light extension) =========
 
 CREATE TABLE IF NOT EXISTS workers (
@@ -276,6 +292,9 @@ CREATE INDEX IF NOT EXISTS idx_msg_attempt_campaign ON message_attempts(campaign
 CREATE INDEX IF NOT EXISTS idx_msg_attempt_provider ON message_attempts(provider, provider_message_id);
 CREATE INDEX IF NOT EXISTS idx_msg_events_attempt ON message_events(message_attempt_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_msg_events_type ON message_events(event_type, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_app_runtime_logs_created_at ON app_runtime_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_app_runtime_logs_scope_created_at ON app_runtime_logs(scope, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_app_runtime_logs_campaign_created_at ON app_runtime_logs(campaign_id, created_at DESC);
 
 -- ========= OPTIONAL DEDUPE (v2) =========
 -- Turn on if you want hard dedupe when hashes are present.

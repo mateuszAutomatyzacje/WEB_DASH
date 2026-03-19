@@ -1,4 +1,5 @@
 import { getSql } from '@/lib/db.js';
+import { logApplicationEventSafe } from '@/lib/application-logs.js';
 import {
   DEFAULT_EVERGREEN_NAME,
   buildEvergreenWebhookPayload,
@@ -35,14 +36,18 @@ async function resolveCampaign(sql, body = {}) {
 }
 
 export async function POST(req) {
+  let sql = null;
+  let campaignName = DEFAULT_EVERGREEN_NAME;
+  let updatedCampaign = null;
   try {
     const body = await req.json().catch(() => ({}));
     const mode = String(body?.mode || 'start').trim();
     const isTestMode = mode === 'test';
-    const sql = getSql();
+    sql = getSql();
 
     const campaign = await resolveCampaign(sql, body);
     if (!campaign) throw new Error('Campaign not found');
+    campaignName = campaign.name;
 
     const existingSettings = normalizeStoredCampaignSettings(campaign.settings);
     const hasStoredRunner = Boolean(getStoredEvergreenRunner(campaign));
@@ -71,7 +76,7 @@ export async function POST(req) {
       returning id, name, status::text as status, settings, updated_at
     `;
 
-    const updatedCampaign = rows[0];
+    updatedCampaign = rows[0];
     await syncScrapeSettingsFromCampaign(sql, { campaignId: updatedCampaign.id, campaignName: updatedCampaign.name });
     const finalConfig = getCampaignRunnerConfig(updatedCampaign);
     const payload = buildEvergreenWebhookPayload(finalConfig, {
@@ -96,6 +101,23 @@ export async function POST(req) {
     }
     if (!res.ok) throw new Error(json?.error || json?.message || text || `HTTP ${res.status}`);
 
+    await logApplicationEventSafe(sql, {
+      level: 'success',
+      scope: 'api',
+      source: 'start_evergreen',
+      eventType: isTestMode ? 'evergreen_test_triggered' : 'evergreen_started',
+      message: `${isTestMode ? 'Evergreen test trigger sent' : 'Evergreen started'} for ${updatedCampaign.name}.`,
+      campaignId: updatedCampaign.id,
+      campaignName: updatedCampaign.name,
+      details: {
+        mode,
+        webhook_url: finalConfig.webhookUrl,
+        send_interval_min: config.sendIntervalMin,
+        lead_sync_interval_min: config.leadSyncIntervalMin,
+        send_email_interval_min: config.sendEmailIntervalMin,
+      },
+    });
+
     return Response.json({
       ok: true,
       mode,
@@ -110,6 +132,20 @@ export async function POST(req) {
       webhook_response: json,
     });
   } catch (e) {
+    if (sql) {
+      await logApplicationEventSafe(sql, {
+        level: 'error',
+        scope: 'api',
+        source: 'start_evergreen',
+        eventType: 'evergreen_start_failed',
+        message: `Failed to start evergreen for ${updatedCampaign?.name || campaignName}: ${String(e?.message || e)}`,
+        campaignId: updatedCampaign?.id || null,
+        campaignName: updatedCampaign?.name || campaignName || null,
+        details: {
+          error: String(e?.message || e),
+        },
+      });
+    }
     return new Response(String(e?.message || e), { status: 400 });
   }
 }

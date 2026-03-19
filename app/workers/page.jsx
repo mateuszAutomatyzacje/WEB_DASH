@@ -6,7 +6,7 @@ export default async function WorkersPage() {
   return (
     <ApplicationLogsScreen
       title="Operations"
-      subtitle="Timeline wysylek, eventy delivery, stan scrapera i checkpointy evergreen w jednym miejscu."
+      subtitle="Live timeline of scheduler, scraper, campaign ticks and delivery events in one place."
     />
   );
 }
