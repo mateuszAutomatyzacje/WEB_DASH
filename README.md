@@ -122,7 +122,7 @@ For live send (`dry_run:false`) preferred envs:
 
 Live send webhook:
 - preferred env: `N8N_SMTP_SEND_WEBHOOK_URL`
-- current default in code: `https://n8n-production-c340.up.railway.app/webhook/smtp-send` (production URL, not webhook-test)
+- current default in code: `https://primary-production-03aa0.up.railway.app/webhook/smtp-send` (production URL, not webhook-test)
 
 ## Deployment note
 - Last report refresh commit timestamp (UTC): 2026-03-06 10:01:35 UTC

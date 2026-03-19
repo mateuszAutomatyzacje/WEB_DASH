@@ -106,7 +106,7 @@ export default function EmailSendingControlPanel({ campaignName, campaignId, ini
       <div style={{ fontSize: 13, color: '#cbd5e1', lineHeight: 1.6, marginBottom: 12 }}>
         <b>Test send</b> wysyla przykladowa wiadomosc na <b>mateusz.wiszniowski.biznes@gmail.com</b>, robi request do n8n i nie przesuwa sekwencji kampanii. <b>Send now (LIVE)</b> oraz scheduler <code>POST /api/admin/campaign/cron-sync</code> robia prawdziwy progression kampanii.
         Auto-mailing dziala wedlug <code>send_email_interval_min</code> z DB.
-        Po <b>15:05</b> czasu lokalnego wysylka live i test webhook sa blokowane.
+        Po <b>15:05</b> czasu lokalnego blokowana jest wysylka <b>LIVE</b>; test webhook pozostaje dostepny niezaleznie od cutoffu.
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button onClick={() => run('start')} disabled={loading} style={{ background: '#111827', color: '#f8fafc', border: '1px solid #374151', borderRadius: 8, padding: '8px 10px' }}>{loading ? '...' : 'Start sending emails'}</button>
