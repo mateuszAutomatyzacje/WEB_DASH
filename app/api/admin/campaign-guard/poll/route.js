@@ -5,8 +5,8 @@
 // - N8N_GUARD_TOKEN=SUPER_SECRET_TOKEN
 
 import { getSql } from '@/lib/db.js';
-import { syncCampaignLeads } from '@/lib/campaign-guard.js';
-import { DEFAULT_EVERGREEN_NAME } from '@/lib/evergreen-config.js';
+import { getCampaignRuntimeState, getNextExpectedAt, syncCampaignLeads } from '@/lib/campaign-guard.js';
+import { DEFAULT_EVERGREEN_NAME, normalizeStoredCampaignSettings } from '@/lib/evergreen-config.js';
 
 async function ensureCampaign(sql, campaignId, campaignName) {
   if (campaignId) {
@@ -97,16 +97,28 @@ export async function POST(req) {
       data = { raw: text };
     }
 
-    const nextExpectedRunAt = new Date(Date.now() + Number((body?.interval_min || 10)) * 60 * 1000).toISOString();
+    const existingRows = await sql`
+      select settings
+      from campaigns
+      where id = ${resolvedCampaignId}::uuid
+      limit 1
+    `;
+    const existingSettings = normalizeStoredCampaignSettings(existingRows[0]?.settings);
+    const runtime = getCampaignRuntimeState(existingSettings);
+    const nextExpectedSyncAt = getNextExpectedAt(body?.lead_sync_interval_min || body?.interval_min || runtime.lead_sync_interval_min || 30);
+    const mergedSettings = {
+      ...existingSettings,
+      auto_sync_status: res.ok ? 'running' : 'error',
+      last_sync_at: new Date().toISOString(),
+      last_sync_ok: res.ok,
+      next_expected_sync_at: nextExpectedSyncAt,
+      last_sync_result: syncResult,
+      last_poll_response_ok: res.ok,
+    };
 
     await sql`
       update campaigns
-      set settings = coalesce(settings, '{}'::jsonb) || ${JSON.stringify({
-        auto_sync_status: res.ok ? 'running' : 'error',
-        last_sync_at: new Date().toISOString(),
-        last_sync_ok: res.ok,
-        next_expected_run_at: nextExpectedRunAt,
-      })}::jsonb || jsonb_build_object('last_sync_result', ${JSON.stringify(syncResult)}::jsonb, 'last_poll_response_ok', ${res.ok}),
+      set settings = ${sql.json(mergedSettings)}::jsonb,
           updated_at = now()
       where id = ${resolvedCampaignId}::uuid
     `;

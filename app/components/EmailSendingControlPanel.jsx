@@ -33,13 +33,16 @@ export default function EmailSendingControlPanel({ campaignName, campaignId, ini
   const [result, setResult] = useState(null);
 
   function applyState(data, fallbackStatus) {
+    const settings = data?.settings || {};
     setState((prev) => ({
       ...prev,
       enabled: typeof data?.auto_send_enabled === 'boolean' ? data.auto_send_enabled : prev.enabled,
       status: data?.auto_send_status || fallbackStatus || prev.status || 'unknown',
       queued_now: Number(data?.queued_now ?? prev.queued_now ?? 0),
       next_due_email: data?.next_due_email || prev.next_due_email || null,
+      send_email_interval_min: Number(settings.send_email_interval_min || data?.send_email_interval_min || prev.send_email_interval_min || 5),
       last_auto_send_at: data?.last_auto_send_at || prev.last_auto_send_at || '',
+      next_expected_send_at: settings.next_expected_send_at || data?.next_expected_send_at || prev.next_expected_send_at || '',
       last_scheduler_result: data?.last_scheduler_result || prev.last_scheduler_result || null,
       last_manual_send_at: data?.last_manual_send_at || prev.last_manual_send_at || '',
       last_manual_send_result: data?.last_manual_send_result || prev.last_manual_send_result || null,
@@ -86,10 +89,12 @@ export default function EmailSendingControlPanel({ campaignName, campaignId, ini
       <div style={{ display: 'grid', gap: 8, fontSize: 14, marginBottom: 14 }}>
         <div><b>Enabled:</b> {state.enabled ? 'yes' : 'no'}</div>
         <div><b>Status:</b> <span style={{ color: state.status === 'running' ? '#86efac' : '#fdba74', fontWeight: 700 }}>{state.status || 'unknown'}</span></div>
+        <div><b>Interval:</b> every {state.send_email_interval_min || 5} min</div>
         <div><b>Queued to send now:</b> {state.queued_now ?? 0}</div>
         <div><b>Sent in last scheduler run:</b> {state.last_scheduler_result?.sent ?? 0}</div>
         <div><b>Failed in last scheduler run:</b> {state.last_scheduler_result?.failed ?? 0}</div>
         <div><b>Last auto-send at:</b> {formatDateTime(state.last_auto_send_at)}</div>
+        <div><b>Next expected auto-send:</b> {formatDateTime(state.next_expected_send_at)}</div>
         <div><b>Last manual live send at:</b> {formatDateTime(state.last_manual_send_at)}</div>
         <div><b>Last manual live result:</b> {renderLastResult(state.last_manual_send_result)}</div>
         <div><b>Last test webhook at:</b> {formatDateTime(state.last_test_send_at)}</div>
@@ -100,6 +105,7 @@ export default function EmailSendingControlPanel({ campaignName, campaignId, ini
       </div>
       <div style={{ fontSize: 13, color: '#cbd5e1', lineHeight: 1.6, marginBottom: 12 }}>
         <b>Test send</b> wysyla przykladowa wiadomosc na <b>mateusz.wiszniowski.biznes@gmail.com</b>, robi request do n8n i nie przesuwa sekwencji kampanii. <b>Send now (LIVE)</b> oraz scheduler <code>POST /api/admin/campaign/cron-sync</code> robia prawdziwy progression kampanii.
+        Auto-mailing dziala wedlug <code>send_email_interval_min</code> z DB.
         Po <b>15:05</b> czasu lokalnego wysylka live i test webhook sa blokowane.
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

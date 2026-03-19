@@ -24,6 +24,8 @@ export async function POST(req) {
       campaignId: body?.campaign_id || null,
       campaignName,
       intervalMin: body?.interval_min || null,
+      leadSyncIntervalMin: body?.lead_sync_interval_min || null,
+      sendEmailIntervalMin: body?.send_email_interval_min || null,
       limit,
       dryRun: Boolean(body?.dry_run ?? false),
       forceSync: body?.force_sync === true,

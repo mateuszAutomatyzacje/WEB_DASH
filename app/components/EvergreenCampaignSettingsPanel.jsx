@@ -35,12 +35,16 @@ function normalizeCfg(raw = {}) {
     crawl4aiHealthPath: String(raw.crawl4aiHealthPath ?? DEFAULTS.crawl4aiHealthPath).trim(),
     webhookUrl: String(raw.webhookUrl ?? DEFAULTS.webhookUrl).trim(),
     sendIntervalMin: SEND_INTERVAL_OPTIONS.includes(Number(raw.sendIntervalMin)) ? Number(raw.sendIntervalMin) : DEFAULTS.sendIntervalMin,
+    leadSyncIntervalMin: SEND_INTERVAL_OPTIONS.includes(Number(raw.leadSyncIntervalMin)) ? Number(raw.leadSyncIntervalMin) : DEFAULTS.leadSyncIntervalMin,
+    sendEmailIntervalMin: SEND_INTERVAL_OPTIONS.includes(Number(raw.sendEmailIntervalMin)) ? Number(raw.sendEmailIntervalMin) : DEFAULTS.sendEmailIntervalMin,
   };
 }
 
 function fromSaved(data = {}, fallback = {}) {
   const runner = data?.evergreen_runner || data?.campaign?.settings?.evergreen_runner || {};
   const sendIntervalMin = data?.send_interval_min ?? data?.campaign?.settings?.send_interval_min ?? fallback?.sendIntervalMin;
+  const leadSyncIntervalMin = data?.lead_sync_interval_min ?? data?.campaign?.settings?.lead_sync_interval_min ?? fallback?.leadSyncIntervalMin;
+  const sendEmailIntervalMin = data?.send_email_interval_min ?? data?.campaign?.settings?.send_email_interval_min ?? fallback?.sendEmailIntervalMin;
   return normalizeCfg({
     ...fallback,
     campaignName: data?.campaign?.name ?? fallback?.campaignName,
@@ -59,6 +63,8 @@ function fromSaved(data = {}, fallback = {}) {
     runId: runner?.run_id,
     crawl4aiHealthPath: runner?.crawl4ai_health_path,
     sendIntervalMin,
+    leadSyncIntervalMin,
+    sendEmailIntervalMin,
   });
 }
 
@@ -98,6 +104,8 @@ export default function EvergreenCampaignSettingsPanel({ initialName, initialCon
     crawl4aiHealthPath: String(cfg.crawl4aiHealthPath || '').trim(),
     webhookUrl: String(cfg.webhookUrl || '').trim(),
     sendIntervalMin: SEND_INTERVAL_OPTIONS.includes(Number(cfg.sendIntervalMin)) ? Number(cfg.sendIntervalMin) : DEFAULTS.sendIntervalMin,
+    leadSyncIntervalMin: SEND_INTERVAL_OPTIONS.includes(Number(cfg.leadSyncIntervalMin)) ? Number(cfg.leadSyncIntervalMin) : DEFAULTS.leadSyncIntervalMin,
+    sendEmailIntervalMin: SEND_INTERVAL_OPTIONS.includes(Number(cfg.sendEmailIntervalMin)) ? Number(cfg.sendEmailIntervalMin) : DEFAULTS.sendEmailIntervalMin,
   }), [cfg]);
 
   async function saveOnly() {
@@ -157,10 +165,26 @@ export default function EvergreenCampaignSettingsPanel({ initialName, initialCon
         <input style={input} value={cfg.campaignName} onChange={(e) => setCfg((c) => normalizeCfg({ ...c, campaignName: e.target.value }))} />
       </div>
       <div style={row}>
-        <div style={label}>sendIntervalMin</div>
+        <div style={label}>sendIntervalMin (scraper)</div>
         <select style={input} value={cfg.sendIntervalMin} onChange={(e) => setCfg((c) => normalizeCfg({ ...c, sendIntervalMin: Number(e.target.value) }))}>
           {SEND_INTERVAL_OPTIONS.map((opt) => (
             <option key={opt} value={opt}>{opt} min</option>
+          ))}
+        </select>
+      </div>
+      <div style={row}>
+        <div style={label}>leadSyncIntervalMin</div>
+        <select style={input} value={cfg.leadSyncIntervalMin} onChange={(e) => setCfg((c) => normalizeCfg({ ...c, leadSyncIntervalMin: Number(e.target.value) }))}>
+          {SEND_INTERVAL_OPTIONS.map((opt) => (
+            <option key={`lead-${opt}`} value={opt}>{opt} min</option>
+          ))}
+        </select>
+      </div>
+      <div style={row}>
+        <div style={label}>sendEmailIntervalMin</div>
+        <select style={input} value={cfg.sendEmailIntervalMin} onChange={(e) => setCfg((c) => normalizeCfg({ ...c, sendEmailIntervalMin: Number(e.target.value) }))}>
+          {SEND_INTERVAL_OPTIONS.map((opt) => (
+            <option key={`email-${opt}`} value={opt}>{opt} min</option>
           ))}
         </select>
       </div>

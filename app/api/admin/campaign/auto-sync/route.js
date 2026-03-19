@@ -8,7 +8,7 @@ export async function POST(req) {
     const body = await req.json().catch(() => ({}));
     const name = String(body?.name || DEFAULT_EVERGREEN_NAME).trim() || DEFAULT_EVERGREEN_NAME;
     const action = String(body?.action || '').trim();
-    const intervalMin = Number(body?.interval_min || 10);
+    const intervalMin = Number(body?.interval_min || 30);
 
     if (!ALLOWED.has(action)) throw new Error('invalid action');
 
@@ -26,7 +26,7 @@ export async function POST(req) {
     const mergedSettings = {
       ...normalizeStoredCampaignSettings(existing[0]?.settings),
       auto_sync_enabled: action === 'start',
-      send_interval_min: intervalMin,
+      lead_sync_interval_min: intervalMin,
       auto_sync_status: action === 'start' ? 'running' : 'paused',
       auto_sync_updated_at: new Date().toISOString(),
     };

@@ -148,9 +148,11 @@ export default async function EvergreenSyncPage() {
               <tr><td style={td}>Campaign ID</td><td style={td}>{campaign.id}</td></tr>
               <tr><td style={td}>Status</td><td style={td}>{campaign.status}</td></tr>
               <tr><td style={td}>Updated</td><td style={td}>{formatDateTime(campaign.updated_at)}</td></tr>
+              <tr><td style={td}>Scraper interval</td><td style={td}>{Number(settings.send_interval_min || 30)} min</td></tr>
               <tr><td style={td}>Last sync</td><td style={td}>{formatDateTime(runtime.last_sync_at)}</td></tr>
-              <tr><td style={td}>Next expected run</td><td style={td}>{formatDateTime(settings.next_expected_run_at)}</td></tr>
+              <tr><td style={td}>Next expected lead sync</td><td style={td}>{formatDateTime(runtime.next_expected_sync_at)}</td></tr>
               <tr><td style={td}>Last auto-send</td><td style={td}>{formatDateTime(runtime.last_auto_send_at)}</td></tr>
+              <tr><td style={td}>Next expected auto-send</td><td style={td}>{formatDateTime(runtime.next_expected_send_at)}</td></tr>
               <tr><td style={td}>Next due email</td><td style={td}>{sendStats?.next_due_email ? `${sendStats.next_due_email.to_email} | attempt ${sendStats.next_due_email.contact_attempt_no ?? '-'} | ${sendStats.next_due_email.next_run_at ? formatDateTime(sendStats.next_due_email.next_run_at) : 'now'}` : '-'}</td></tr>
             </tbody>
           </Table>
@@ -161,8 +163,9 @@ export default async function EvergreenSyncPage() {
           initial={{
             enabled: runtime.auto_sync_enabled,
             status: runtime.auto_sync_status || campaign.status || 'unknown',
-            send_interval_min: Number(runtime.send_interval_min || 10),
+            lead_sync_interval_min: Number(runtime.lead_sync_interval_min || 30),
             last_sync_at: runtime.last_sync_at || '',
+            next_expected_sync_at: runtime.next_expected_sync_at || '',
             last_sync_result: settings.last_sync_result || null,
           }}
         />
@@ -177,7 +180,9 @@ export default async function EvergreenSyncPage() {
             status: runtime.auto_send_status,
             queued_now: sendStats?.queued_now ?? 0,
             next_due_email: sendStats?.next_due_email || null,
+            send_email_interval_min: Number(runtime.send_email_interval_min || 5),
             last_auto_send_at: runtime.last_auto_send_at || '',
+            next_expected_send_at: runtime.next_expected_send_at || '',
             last_scheduler_result: runtime.last_scheduler_result || null,
             last_manual_send_at: runtime.last_manual_send_at || '',
             last_manual_send_result: runtime.last_manual_send_result || null,

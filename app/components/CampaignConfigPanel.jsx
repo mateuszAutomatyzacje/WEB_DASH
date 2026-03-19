@@ -14,7 +14,9 @@ const STATUSES = ['draft', 'ready', 'running', 'paused', 'stopped', 'archived', 
 const DEFAULT_DESCRIPTION = 'Kampania ciagla dla nowych leadow';
 
 const FIELD_DEFS = [
-  { key: 'sendIntervalMin', label: 'Send interval', type: 'select', options: SEND_INTERVAL_OPTIONS },
+  { key: 'sendIntervalMin', label: 'Send interval (scraper)', type: 'select', options: SEND_INTERVAL_OPTIONS },
+  { key: 'leadSyncIntervalMin', label: 'Lead sync interval', type: 'select', options: SEND_INTERVAL_OPTIONS },
+  { key: 'sendEmailIntervalMin', label: 'Send email interval', type: 'select', options: SEND_INTERVAL_OPTIONS },
   { key: 'webhookUrl', label: 'n8n Webhook URL', type: 'text' },
   { key: 'baseUrl', label: 'Base URL', type: 'text' },
   { key: 'maxPages', label: 'Max Pages', type: 'number', min: 1 },
@@ -267,7 +269,8 @@ export default function CampaignConfigPanel({ initialCampaignId = '', initialCam
             <code> follow_up_1_delay_days </code>, <code> follow_up_2_delay_days </code>, <code> send_batch_limit </code>.
           </div>
           <div style={{ fontSize: 12, color: '#555' }}>
-            <code>send_interval_min</code> controls the evergreen scheduler and scraper cadence for this campaign.
+            <code>send_interval_min</code> controls scraper cadence, <code>lead_sync_interval_min</code> controls lead sync into campaign,
+            and <code>send_email_interval_min</code> controls automatic campaign email sending.
           </div>
 
           <div style={{ marginTop: 8, padding: 12, border: '1px solid #eee', borderRadius: 8, display: 'grid', gap: 10 }}>
@@ -283,11 +286,12 @@ export default function CampaignConfigPanel({ initialCampaignId = '', initialCam
                 );
               }
               if (field.type === 'select') {
+                const isIntervalField = ['sendIntervalMin', 'leadSyncIntervalMin', 'sendEmailIntervalMin'].includes(field.key);
                 return (
                   <label key={field.key} style={fieldRow}>
                     <span>{field.label}</span>
-                    <select value={value} onChange={(e) => setConfigField(field.key, field.key === 'sendIntervalMin' ? Number(e.target.value) : e.target.value)} style={input}>
-                      {field.options.map((opt) => <option key={String(opt) || 'empty'} value={opt}>{field.key === 'sendIntervalMin' ? `${opt} min` : (opt || 'Any')}</option>)}
+                    <select value={value} onChange={(e) => setConfigField(field.key, isIntervalField ? Number(e.target.value) : e.target.value)} style={input}>
+                      {field.options.map((opt) => <option key={String(opt) || 'empty'} value={opt}>{isIntervalField ? `${opt} min` : (opt || 'Any')}</option>)}
                     </select>
                   </label>
                 );

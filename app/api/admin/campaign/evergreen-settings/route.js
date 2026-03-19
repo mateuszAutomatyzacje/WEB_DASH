@@ -44,7 +44,9 @@ export async function PUT(req) {
       normalizeEvergreenConfig(body, getCampaignRunnerConfig(campaign, { strict: true }), { strict: true }),
     );
     const storedRunner = toStoredEvergreenRunner(config, { strict: true });
-    const sendIntervalMin = config.sendIntervalMin;
+    const scraperIntervalMin = config.sendIntervalMin;
+    const leadSyncIntervalMin = config.leadSyncIntervalMin;
+    const sendEmailIntervalMin = config.sendEmailIntervalMin;
     const rawBatchLimit = body?.sendBatchLimit ?? body?.send_batch_limit ?? existingSettings.send_batch_limit ?? existingSettings.sendBatchLimit ?? 1;
     const batchValue = Number(rawBatchLimit);
     const sendBatchLimit = Number.isFinite(batchValue) ? Math.min(Math.max(Math.trunc(batchValue), 1), 200) : 1;
@@ -52,7 +54,9 @@ export async function PUT(req) {
       ...existingSettings,
       mode: 'evergreen',
       evergreen_runner: storedRunner,
-      send_interval_min: sendIntervalMin,
+      send_interval_min: scraperIntervalMin,
+      lead_sync_interval_min: leadSyncIntervalMin,
+      send_email_interval_min: sendEmailIntervalMin,
       send_batch_limit: sendBatchLimit,
     };
     delete mergedSettings.sync_interval_min;
@@ -74,7 +78,9 @@ export async function PUT(req) {
       campaign_id: updatedCampaign.id,
       settings: updatedCampaign.settings,
       evergreen_runner: updatedCampaign.settings?.evergreen_runner || storedRunner,
-      send_interval_min: updatedCampaign.settings?.send_interval_min ?? sendIntervalMin,
+      send_interval_min: updatedCampaign.settings?.send_interval_min ?? scraperIntervalMin,
+      lead_sync_interval_min: updatedCampaign.settings?.lead_sync_interval_min ?? leadSyncIntervalMin,
+      send_email_interval_min: updatedCampaign.settings?.send_email_interval_min ?? sendEmailIntervalMin,
       send_batch_limit: updatedCampaign.settings?.send_batch_limit ?? sendBatchLimit,
       runner_config: updatedConfig,
     });

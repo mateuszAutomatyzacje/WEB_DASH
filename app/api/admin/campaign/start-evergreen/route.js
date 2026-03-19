@@ -56,6 +56,8 @@ export async function POST(req) {
       mode: 'evergreen',
       evergreen_runner: storedRunner,
       send_interval_min: config.sendIntervalMin,
+      lead_sync_interval_min: config.leadSyncIntervalMin,
+      send_email_interval_min: config.sendEmailIntervalMin,
     };
     delete mergedSettings.sync_interval_min;
 

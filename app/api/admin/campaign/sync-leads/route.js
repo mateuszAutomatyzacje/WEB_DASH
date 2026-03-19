@@ -1,6 +1,6 @@
 import { getSql } from '@/lib/db.js';
-import { DEFAULT_EVERGREEN_NAME } from '@/lib/evergreen-config.js';
-import { resolveOrCreateCampaign, stopRepliedCampaignLeads, syncCampaignLeads } from '@/lib/campaign-guard.js';
+import { DEFAULT_EVERGREEN_NAME, normalizeStoredCampaignSettings } from '@/lib/evergreen-config.js';
+import { getCampaignRuntimeState, getNextExpectedAt, resolveOrCreateCampaign, stopRepliedCampaignLeads, syncCampaignLeads } from '@/lib/campaign-guard.js';
 
 export async function POST(req) {
   try {
@@ -16,14 +16,20 @@ export async function POST(req) {
 
     const result = await syncCampaignLeads(sql, campaign.id);
     const replied = await stopRepliedCampaignLeads(sql, campaign.id);
+    const settings = normalizeStoredCampaignSettings(campaign.settings);
+    const runtime = getCampaignRuntimeState(settings);
+    const mergedSettings = {
+      ...settings,
+      auto_sync_status: 'running',
+      last_sync_at: new Date().toISOString(),
+      last_sync_ok: true,
+      next_expected_sync_at: getNextExpectedAt(runtime.lead_sync_interval_min),
+      last_sync_result: result,
+    };
 
     await sql`
       update public.campaigns
-      set settings = coalesce(settings, '{}'::jsonb) || ${sql.json({
-        auto_sync_status: 'running',
-        last_sync_at: new Date().toISOString(),
-        last_sync_ok: true,
-      })}::jsonb || jsonb_build_object('last_sync_result', ${sql.json(result)}::jsonb),
+      set settings = ${sql.json(mergedSettings)}::jsonb,
           updated_at = now()
       where id = ${campaign.id}::uuid
     `;

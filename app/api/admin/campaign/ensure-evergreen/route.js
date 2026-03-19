@@ -9,7 +9,9 @@ export async function POST(req) {
     const description = 'Kampania ciągła dla nowych leadów';
     const settings = {
       mode: 'evergreen',
-      send_interval_min: 5,
+      send_interval_min: 30,
+      lead_sync_interval_min: 30,
+      send_email_interval_min: 5,
       auto_enqueue: true,
       auto_sync_enabled: true,
       auto_sync_status: 'running',

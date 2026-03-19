@@ -9,13 +9,21 @@ function normalizeTopLevelSettings(value) {
 
 function mergeCampaignSettings(existingSettings, incomingSettings) {
   const existing = normalizeStoredCampaignSettings(existingSettings);
-  const incomingHasSendInterval = Boolean(incomingSettings)
+  const incomingHasScraperInterval = Boolean(incomingSettings)
+    && typeof incomingSettings === 'object'
+    && !Array.isArray(incomingSettings)
+    && Object.prototype.hasOwnProperty.call(incomingSettings, 'send_interval_min');
+  const incomingHasLeadSyncInterval = Boolean(incomingSettings)
     && typeof incomingSettings === 'object'
     && !Array.isArray(incomingSettings)
     && (
-      Object.prototype.hasOwnProperty.call(incomingSettings, 'send_interval_min')
+      Object.prototype.hasOwnProperty.call(incomingSettings, 'lead_sync_interval_min')
       || Object.prototype.hasOwnProperty.call(incomingSettings, 'sync_interval_min')
     );
+  const incomingHasSendEmailInterval = Boolean(incomingSettings)
+    && typeof incomingSettings === 'object'
+    && !Array.isArray(incomingSettings)
+    && Object.prototype.hasOwnProperty.call(incomingSettings, 'send_email_interval_min');
   const incoming = normalizeTopLevelSettings(incomingSettings);
   const existingRunner = getStoredEvergreenRunner(existing);
   const merged = {
@@ -24,9 +32,17 @@ function mergeCampaignSettings(existingSettings, incomingSettings) {
     evergreen_runner: existingRunner || existing?.evergreen_runner,
   };
 
-  if (!incomingHasSendInterval) {
+  if (!incomingHasScraperInterval) {
     if (typeof existing?.send_interval_min !== 'undefined') merged.send_interval_min = existing.send_interval_min;
     else delete merged.send_interval_min;
+  }
+  if (!incomingHasLeadSyncInterval) {
+    if (typeof existing?.lead_sync_interval_min !== 'undefined') merged.lead_sync_interval_min = existing.lead_sync_interval_min;
+    else delete merged.lead_sync_interval_min;
+  }
+  if (!incomingHasSendEmailInterval) {
+    if (typeof existing?.send_email_interval_min !== 'undefined') merged.send_email_interval_min = existing.send_email_interval_min;
+    else delete merged.send_email_interval_min;
   }
 
   delete merged.sync_interval_min;
