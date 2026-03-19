@@ -1,4 +1,5 @@
 import { getSql } from '@/lib/db.js';
+import { syncScrapeSettingsFromCampaign } from '@/lib/scrape-settings.js';
 // auth disabled for now
 
 export async function POST(req) {
@@ -17,11 +18,16 @@ export async function POST(req) {
     if (!campaign_id) throw new Error('missing campaign_id');
 
     const sql = getSql();
-    await sql`
+    const rows = await sql`
       update campaigns
       set status = 'running', updated_at = now()
       where id = ${campaign_id}
+      returning id, name
     `;
+
+    if (rows[0]?.id) {
+      await syncScrapeSettingsFromCampaign(sql, { campaignId: rows[0].id, campaignName: rows[0].name });
+    }
 
     return Response.json({ ok: true, campaign_id, status: 'running' });
   } catch (e) {

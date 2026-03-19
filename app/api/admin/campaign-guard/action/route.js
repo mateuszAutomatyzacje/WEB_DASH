@@ -1,4 +1,6 @@
 import { getSql } from '@/lib/db.js';
+import { normalizeStoredCampaignSettings } from '@/lib/evergreen-config.js';
+import { resolveSendEmailIntervalMin } from '@/lib/queue-view.js';
 
 const ALLOWED = new Set(['stop', 'resume', 'requeue', 'mark_replied', 'mark_failed']);
 
@@ -14,12 +16,21 @@ export async function POST(req) {
     const sql = getSql();
 
     const [lead] = await sql`
-      select id, lead_id, active_contact_id, campaign_id
-      from public.campaign_leads
-      where id = ${campaignLeadId}::uuid
+      select
+        cl.id,
+        cl.lead_id,
+        cl.active_contact_id,
+        cl.campaign_id,
+        c.settings as campaign_settings
+      from public.campaign_leads cl
+      join public.campaigns c on c.id = cl.campaign_id
+      where cl.id = ${campaignLeadId}::uuid
       limit 1
     `;
     if (!lead) throw new Error('campaign_lead not found');
+
+    const campaignSettings = normalizeStoredCampaignSettings(lead.campaign_settings);
+    const requeueDelayMin = resolveSendEmailIntervalMin(campaignSettings);
 
     if (action === 'stop') {
       await sql`
@@ -49,7 +60,7 @@ export async function POST(req) {
       await sql`
         update public.campaign_leads
         set state = 'in_campaign'::public.lead_status,
-            next_run_at = now() + interval '5 minutes',
+            next_run_at = now() + (${requeueDelayMin}::text || ' minutes')::interval,
             updated_at = now()
         where id = ${campaignLeadId}::uuid
       `;

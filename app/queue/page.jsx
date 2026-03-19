@@ -1,7 +1,8 @@
 import Link from 'next/link';
-import { AppShell, Card, FilterForm, FiltersGrid, Field, Table, inputStyle, td, th } from '@/app/components/AppShell.jsx';
+import { AppShell, Card, Field, FilterForm, FiltersGrid, Table, inputStyle, td, th } from '@/app/components/AppShell.jsx';
 import { getSql } from '@/lib/db.js';
 import { formatDateTime } from '@/lib/time.js';
+import { filterProjectedQueueRows, projectQueueRows, summarizeProjectedQueue } from '@/lib/queue-view.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,6 +10,7 @@ function normalize(searchParams) {
   const campaign = String(searchParams?.campaign || '').trim();
   const state = String(searchParams?.state || 'all');
   const due = String(searchParams?.due || 'all');
+
   return {
     campaign,
     state: ['all', 'new', 'enriched', 'in_campaign', 'stopped', 'closed', 'invalid', 'konkurencja'].includes(state) ? state : 'all',
@@ -18,23 +20,13 @@ function normalize(searchParams) {
 
 export default async function QueuePage({ searchParams }) {
   const sql = getSql();
+  const now = new Date();
   const resolvedSearchParams = await searchParams;
   const filters = normalize(resolvedSearchParams);
   const campaignFilter = filters.campaign ? `%${filters.campaign}%` : null;
   const stateFilter = filters.state === 'all' ? null : filters.state;
 
-  const [summary] = await sql`
-    select
-      count(*)::int as total,
-      count(*) filter (where next_run_at <= now())::int as overdue,
-      count(*) filter (where next_run_at > now() and next_run_at <= now() + interval '24 hours')::int as next_24h,
-      min(next_run_at) as next_eta
-    from public.campaign_leads
-    where next_run_at is not null
-      and state in ('in_campaign','new','enriched')
-  `;
-
-  const rows = await sql`
+  const rawRows = await sql`
     select
       cl.id,
       cl.next_run_at,
@@ -43,6 +35,8 @@ export default async function QueuePage({ searchParams }) {
       cl.stop_reason::text as stop_reason,
       c.name as campaign_name,
       c.id as campaign_id,
+      c.status::text as campaign_status,
+      c.settings as campaign_settings,
       l.company_name,
       la.to_email::text as email,
       lc.first_name,
@@ -63,23 +57,24 @@ export default async function QueuePage({ searchParams }) {
       and cl.state in ('in_campaign','new','enriched')
       and (${campaignFilter}::text is null or coalesce(c.name, '') ilike ${campaignFilter})
       and (${stateFilter}::text is null or cl.state::text = ${stateFilter})
-      and (
-        ${filters.due} = 'all'
-        or (${filters.due} = 'overdue' and cl.next_run_at <= now())
-        or (${filters.due} = 'today' and cl.next_run_at::date = current_date)
-        or (${filters.due} = 'next24h' and cl.next_run_at > now() and cl.next_run_at <= now() + interval '24 hours')
-      )
     order by cl.next_run_at asc
-    limit 300
+    limit 1000
   `;
 
+  const projectedRows = projectQueueRows(rawRows, { now });
+  const rows = filterProjectedQueueRows(projectedRows, filters.due, { now });
+  const summary = summarizeProjectedQueue(rows, { now });
+
   return (
-    <AppShell title="Queue" subtitle="Biznesowy widok kolejki: co jest overdue, co leci dziś i które follow-upy są najbliżej wysyłki.">
+    <AppShell
+      title="Queue"
+      subtitle="Business queue view: ready_at comes from campaign_leads, send_eta is projected from send_email_interval_min and send_batch_limit."
+    >
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 20 }}>
-        <Card><div style={{ fontSize: 13, color: '#94a3b8' }}>Total queued</div><div style={{ fontSize: 30, fontWeight: 800 }}>{summary?.total ?? 0}</div></Card>
-        <Card><div style={{ fontSize: 13, color: '#94a3b8' }}>Overdue</div><div style={{ fontSize: 30, fontWeight: 800, color: '#fca5a5' }}>{summary?.overdue ?? 0}</div></Card>
-        <Card><div style={{ fontSize: 13, color: '#94a3b8' }}>Next 24h</div><div style={{ fontSize: 30, fontWeight: 800 }}>{summary?.next_24h ?? 0}</div></Card>
-        <Card><div style={{ fontSize: 13, color: '#94a3b8' }}>Next ETA</div><div style={{ fontSize: 20, fontWeight: 800 }}>{formatDateTime(summary?.next_eta)}</div></Card>
+        <Card><div style={{ fontSize: 13, color: '#94a3b8' }}>Total queued</div><div style={{ fontSize: 30, fontWeight: 800 }}>{summary.total}</div></Card>
+        <Card><div style={{ fontSize: 13, color: '#94a3b8' }}>Ready now</div><div style={{ fontSize: 30, fontWeight: 800, color: '#fca5a5' }}>{summary.ready_now}</div></Card>
+        <Card><div style={{ fontSize: 13, color: '#94a3b8' }}>Send ETA 24h</div><div style={{ fontSize: 30, fontWeight: 800 }}>{summary.next_24h}</div></Card>
+        <Card><div style={{ fontSize: 13, color: '#94a3b8' }}>Next send ETA</div><div style={{ fontSize: 20, fontWeight: 800 }}>{formatDateTime(summary.next_eta)}</div></Card>
       </section>
 
       <FilterForm>
@@ -95,10 +90,10 @@ export default async function QueuePage({ searchParams }) {
               <option value="in_campaign">in_campaign</option>
             </select>
           </Field>
-          <Field label="Due window">
+          <Field label="Send window">
             <select name="due" defaultValue={filters.due} style={inputStyle}>
               <option value="all">all</option>
-              <option value="overdue">overdue</option>
+              <option value="overdue">ready now</option>
               <option value="today">today</option>
               <option value="next24h">next 24h</option>
             </select>
@@ -110,10 +105,14 @@ export default async function QueuePage({ searchParams }) {
       </FilterForm>
 
       <Card>
+        <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 12 }}>
+          <b>ready_at</b> means the lead is eligible for send from the sequence. <b>send_eta</b> is the projected scheduler slot based on campaign cadence and batch size.
+        </div>
         <Table>
           <thead>
             <tr>
-              <th style={th}>next_run_at</th>
+              <th style={th}>ready_at</th>
+              <th style={th}>send_eta</th>
               <th style={th}>campaign</th>
               <th style={th}>company</th>
               <th style={th}>contact/email</th>
@@ -123,18 +122,29 @@ export default async function QueuePage({ searchParams }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
-              <tr key={r.id}>
-                <td style={{ ...td, color: new Date(r.next_run_at) <= new Date() ? '#fca5a5' : '#f8fafc' }}>{formatDateTime(r.next_run_at)}</td>
-                <td style={td}><Link href={`/campaigns/${r.campaign_id}`}>{r.campaign_name}</Link></td>
-                <td style={td}>{r.company_name || '-'}</td>
-                <td style={td}>{[r.first_name, r.last_name].filter(Boolean).join(' ') || r.email || '-'}</td>
-                <td style={td}>{r.state}</td>
-                <td style={td}>{r.contact_attempt_no ?? '-'}</td>
-                <td style={td}>{r.stop_reason || '-'}</td>
+            {rows.map((row) => (
+              <tr key={row.id}>
+                <td style={{ ...td, color: row.ready_now ? '#fca5a5' : '#f8fafc' }}>
+                  {formatDateTime(row.ready_at)}
+                  <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>{row.ready_now ? 'ready now' : 'scheduled'}</div>
+                </td>
+                <td style={td}>
+                  {row.send_scheduler_enabled ? formatDateTime(row.projected_send_at) : 'auto-send paused'}
+                  {row.send_scheduler_enabled ? (
+                    <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>
+                      slot {row.queue_slot_no ?? '-'} | every {row.send_email_interval_min} min | batch {row.send_batch_limit}
+                    </div>
+                  ) : null}
+                </td>
+                <td style={td}><Link href={`/campaigns/${row.campaign_id}`}>{row.campaign_name}</Link></td>
+                <td style={td}>{row.company_name || '-'}</td>
+                <td style={td}>{[row.first_name, row.last_name].filter(Boolean).join(' ') || row.email || '-'}</td>
+                <td style={td}>{row.state}</td>
+                <td style={td}>{row.contact_attempt_no ?? '-'}</td>
+                <td style={td}>{row.stop_reason || '-'}</td>
               </tr>
             ))}
-            {rows.length === 0 && <tr><td style={td} colSpan={7}>Queue empty</td></tr>}
+            {rows.length === 0 ? <tr><td style={td} colSpan={8}>Queue empty</td></tr> : null}
           </tbody>
         </Table>
       </Card>

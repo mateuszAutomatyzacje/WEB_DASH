@@ -1,4 +1,5 @@
 import { getSql } from '@/lib/db.js';
+import { syncScrapeSettingsFromCampaign } from '@/lib/scrape-settings.js';
 
 const ALLOWED = new Set(['draft', 'ready', 'running', 'paused', 'stopped', 'archived']);
 
@@ -12,12 +13,17 @@ export async function POST(req) {
     if (!ALLOWED.has(status)) throw new Error('invalid status');
 
     const sql = getSql();
-    await sql`
+    const rows = await sql`
       update campaigns
       set status = ${status}::campaign_status,
           updated_at = now()
       where id = ${campaign_id}
+      returning id, name
     `;
+
+    if (rows[0]?.id) {
+      await syncScrapeSettingsFromCampaign(sql, { campaignId: rows[0].id, campaignName: rows[0].name });
+    }
 
     return Response.json({ ok: true, campaign_id, status });
   } catch (e) {

@@ -97,7 +97,7 @@ export default function ScrapeSettingsPanel({ initial }) {
             checked={Boolean(cfg?.running)}
             onChange={(e) => setCfg((c) => ({ ...c, running: e.target.checked }))}
           />
-          <span style={{ fontSize: 13, color: '#444' }}>Jesli wlaczone, cron odpala run wg zewnetrznego harmonogramu</span>
+          <span style={{ fontSize: 13, color: '#444' }}>Jesli wlaczone, internal scheduler odpala scraper wg interwalu kampanii; zewnetrzny tick pozostaje opcjonalny.</span>
         </label>
       </div>
 

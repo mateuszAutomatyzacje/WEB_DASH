@@ -9,6 +9,7 @@ import {
   toStoredEvergreenRunner,
   validateEvergreenRuntimeConfig,
 } from '@/lib/evergreen-config.js';
+import { syncScrapeSettingsFromCampaign } from '@/lib/scrape-settings.js';
 
 async function resolveCampaign(sql, body = {}) {
   const campaignId = String(body?.campaign_id || body?.campaignId || '').trim();
@@ -71,6 +72,7 @@ export async function POST(req) {
     `;
 
     const updatedCampaign = rows[0];
+    await syncScrapeSettingsFromCampaign(sql, { campaignId: updatedCampaign.id, campaignName: updatedCampaign.name });
     const finalConfig = getCampaignRunnerConfig(updatedCampaign);
     const payload = buildEvergreenWebhookPayload(finalConfig, {
       campaignId: updatedCampaign.id,
