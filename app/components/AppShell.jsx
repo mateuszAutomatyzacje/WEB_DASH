@@ -35,6 +35,7 @@ export function AppShell({ title, subtitle, children, actions }) {
           <Link href="/queue" style={navLink}>Queue</Link>
           <Link href="/workers" style={navLink}>Operations</Link>
           <Link href="/evergreen-sync" style={navLink}>Evergreen</Link>
+          <Link href="/logs" style={navLink}>Logs</Link>
           <a href="/api/health" style={navLink}>API health</a>
         </nav>
 
