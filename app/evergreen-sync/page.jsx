@@ -160,7 +160,9 @@ export default async function EvergreenSyncPage() {
 
         <AutoSyncControlPanel
           campaignName={campaign.name}
+          campaignStatus={campaign.status}
           initial={{
+            campaign_status: campaign.status,
             enabled: runtime.auto_sync_enabled,
             status: runtime.auto_sync_status || campaign.status || 'unknown',
             lead_sync_interval_min: Number(runtime.lead_sync_interval_min || 30),
@@ -175,7 +177,9 @@ export default async function EvergreenSyncPage() {
         <EmailSendingControlPanel
           campaignName={campaign.name}
           campaignId={campaign.id}
+          campaignStatus={campaign.status}
           initial={{
+            campaign_status: campaign.status,
             enabled: runtime.auto_send_enabled,
             status: runtime.auto_send_status,
             queued_now: sendStats?.queued_now ?? 0,

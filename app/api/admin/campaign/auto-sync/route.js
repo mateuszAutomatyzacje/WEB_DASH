@@ -1,8 +1,14 @@
 import { getSql } from '@/lib/db.js';
 import { logApplicationEventSafe } from '@/lib/application-logs.js';
-import { DEFAULT_EVERGREEN_NAME, normalizeStoredCampaignSettings } from '@/lib/evergreen-config.js';
+import { DEFAULT_EVERGREEN_NAME, SEND_INTERVAL_OPTIONS, normalizeStoredCampaignSettings } from '@/lib/evergreen-config.js';
 
 const ALLOWED = new Set(['start', 'stop']);
+
+function resolveIntervalMin(raw, fallback = 30) {
+  const numeric = Number(raw);
+  if (!Number.isFinite(numeric)) return fallback;
+  return SEND_INTERVAL_OPTIONS.includes(numeric) ? numeric : fallback;
+}
 
 export async function POST(req) {
   let sql = null;
@@ -12,7 +18,7 @@ export async function POST(req) {
     const body = await req.json().catch(() => ({}));
     name = String(body?.name || DEFAULT_EVERGREEN_NAME).trim() || DEFAULT_EVERGREEN_NAME;
     action = String(body?.action || '').trim();
-    const intervalMin = Number(body?.interval_min || 30);
+    const intervalMin = resolveIntervalMin(body?.interval_min, 30);
 
     if (!ALLOWED.has(action)) throw new Error('invalid action');
 

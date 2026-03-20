@@ -25,7 +25,7 @@ function renderNextDue(nextDue) {
   return `${who} | ${company} | attempt ${nextDue.contact_attempt_no ?? '-'} | ${when}`;
 }
 
-export default function EmailSendingControlPanel({ campaignName, campaignId, initial }) {
+export default function EmailSendingControlPanel({ campaignName, campaignId, initial, campaignStatus = 'unknown' }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState('');
@@ -38,6 +38,7 @@ export default function EmailSendingControlPanel({ campaignName, campaignId, ini
       ...prev,
       enabled: typeof data?.auto_send_enabled === 'boolean' ? data.auto_send_enabled : prev.enabled,
       status: data?.auto_send_status || fallbackStatus || prev.status || 'unknown',
+      campaign_status: data?.campaign?.status || data?.status || prev.campaign_status || campaignStatus,
       queued_now: Number(data?.queued_now ?? prev.queued_now ?? 0),
       next_due_email: data?.next_due_email || prev.next_due_email || null,
       send_email_interval_min: Number(settings.send_email_interval_min || data?.send_email_interval_min || prev.send_email_interval_min || 5),
@@ -87,6 +88,7 @@ export default function EmailSendingControlPanel({ campaignName, campaignId, ini
     <section style={{ border: '1px solid #1f2937', borderRadius: 16, padding: 16, background: '#000', color: '#f8fafc' }}>
       <h3 style={{ marginTop: 0, fontSize: 20 }}>Email sending status</h3>
       <div style={{ display: 'grid', gap: 8, fontSize: 14, marginBottom: 14 }}>
+        <div><b>Campaign status:</b> <span style={{ color: state.campaign_status === 'running' ? '#86efac' : '#fca5a5', fontWeight: 700 }}>{state.campaign_status || campaignStatus || 'unknown'}</span></div>
         <div><b>Enabled:</b> {state.enabled ? 'yes' : 'no'}</div>
         <div><b>Status:</b> <span style={{ color: state.status === 'running' ? '#86efac' : '#fdba74', fontWeight: 700 }}>{state.status || 'unknown'}</span></div>
         <div><b>Interval:</b> every {state.send_email_interval_min || 5} min</div>
@@ -103,10 +105,15 @@ export default function EmailSendingControlPanel({ campaignName, campaignId, ini
         <div><b>Next due email:</b> {renderNextDue(state.next_due_email)}</div>
         <div><b>Last send result:</b> {renderLastResult(state.last_scheduler_result)}</div>
       </div>
+      {state.campaign_status !== 'running' ? (
+        <div style={{ fontSize: 13, color: '#fca5a5', lineHeight: 1.6, marginBottom: 12 }}>
+          Automation is blocked while the overall campaign status is <b>{state.campaign_status || campaignStatus || 'unknown'}</b>. Auto-mailing and scheduler runs require the campaign itself to be <b>running</b>.
+        </div>
+      ) : null}
       <div style={{ fontSize: 13, color: '#cbd5e1', lineHeight: 1.6, marginBottom: 12 }}>
         <b>Test send</b> wysyla przykladowa wiadomosc na <b>mateusz.wiszniowski.biznes@gmail.com</b>, robi request do n8n i nie przesuwa sekwencji kampanii. <b>Send now (LIVE)</b> oraz scheduler <code>POST /api/admin/campaign/cron-sync</code> robia prawdziwy progression kampanii.
         Auto-mailing dziala wedlug <code>send_email_interval_min</code> z DB.
-        Wysylka <b>LIVE</b> dziala tylko w oknie <b>08:00-15:15</b> czasu lokalnego; test webhook pozostaje dostepny niezaleznie od tego okna.
+        Wysylka <b>LIVE</b> dziala tylko w oknie <b>08:00-15:15</b> czasu lokalnego; test webhook pozostaje dostepny niezaleznie od tego okna. Dodatkowo scheduler automatyczny wymaga globalnego statusu kampanii <b>running</b>.
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button onClick={() => run('start')} disabled={loading} style={{ background: '#111827', color: '#f8fafc', border: '1px solid #374151', borderRadius: 8, padding: '8px 10px' }}>{loading ? '...' : 'Start sending emails'}</button>
