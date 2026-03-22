@@ -1,7 +1,7 @@
 import { getSql } from '@/lib/db.js';
 import {
   buildLeadExportCsv,
-  buildLeadExportXlsHtml,
+  buildLeadExportXlsxBuffer,
   listLeadExportRows,
   mapLeadExportRow,
   normalizeLeadExportFilters,
@@ -34,13 +34,14 @@ export async function GET(req) {
       });
     }
 
-    if (format === 'xls') {
-      const html = buildLeadExportXlsHtml(rows, new Date().toISOString());
+    if (format === 'xls' || format === 'xlsx' || format === 'excel') {
+      const generatedAt = new Date().toISOString();
+      const workbook = buildLeadExportXlsxBuffer(rows, generatedAt);
 
-      return new Response(html, {
+      return new Response(workbook, {
         headers: {
-          'Content-Type': 'application/vnd.ms-excel; charset=utf-8',
-          'Content-Disposition': `attachment; filename="lead-export-${new Date().toISOString().slice(0, 10)}.xls"`,
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'Content-Disposition': `attachment; filename="lead-export-${generatedAt.slice(0, 10)}.xlsx"`,
           'Cache-Control': 'no-store',
         },
       });

@@ -44,18 +44,18 @@ export default async function ExportPage({ searchParams }) {
     ? 'All campaigns'
     : (selectedCampaign?.name || filters.campaign_id);
   const downloadQuery = buildLeadExportQueryString(filters, { format: 'csv', limit: EXPORT_LIMIT });
-  const xlsQuery = buildLeadExportQueryString(filters, { format: 'xls', limit: EXPORT_LIMIT });
+  const excelQuery = buildLeadExportQueryString(filters, { format: 'xlsx', limit: EXPORT_LIMIT });
   const jsonQuery = buildLeadExportQueryString(filters, { format: 'json', limit: EXPORT_LIMIT });
   const jsonFeedUrl = `/api/export/leads?${jsonQuery}`;
 
   return (
     <AppShell
       title="Export"
-      subtitle="Live eksport kontaktow z leadami: imie, nazwisko, email, LinkedIn i informacja jakiego developera szuka firma. Ten sam filtr zasila preview oraz CSV/XLS/JSON do automatyzacji."
+      subtitle="Live eksport kontaktow z leadami: imie, nazwisko, email, LinkedIn i informacja jakiego developera szuka firma. Ten sam filtr zasila preview oraz CSV/XLSX/JSON do automatyzacji."
       actions={(
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <a href={`/api/export/leads?${downloadQuery}`} style={{ color: '#93c5fd' }}>Download CSV</a>
-          <a href={`/api/export/leads?${xlsQuery}`} style={{ color: '#93c5fd' }}>Download XLS</a>
+          <a href={`/api/export/leads?${excelQuery}`} style={{ color: '#93c5fd' }}>Download Excel</a>
           <a href={jsonFeedUrl} style={{ color: '#93c5fd' }}>Open JSON feed</a>
         </div>
       )}
@@ -115,7 +115,7 @@ export default async function ExportPage({ searchParams }) {
           </div>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
             <a href={`/api/export/leads?${downloadQuery}`} style={{ ...inputStyle, width: 'auto', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>Download CSV</a>
-            <a href={`/api/export/leads?${xlsQuery}`} style={{ ...inputStyle, width: 'auto', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>Download XLS</a>
+            <a href={`/api/export/leads?${excelQuery}`} style={{ ...inputStyle, width: 'auto', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>Download Excel</a>
             <a href={jsonFeedUrl} style={{ ...inputStyle, width: 'auto', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>Open JSON feed</a>
           </div>
           <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 6 }}>Automation feed URL</div>

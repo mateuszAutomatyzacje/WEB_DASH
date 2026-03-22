@@ -69,9 +69,10 @@ export default function ExportDigestControlPanel({ initial }) {
         <div><b>Next scheduled send:</b> {formatDateTime(state?.next_scheduled_at)}</div>
         <div><b>Last run:</b> {renderLastRun(latestRun)}</div>
         <div><b>Webhook:</b> <span style={{ color: '#94a3b8' }}>{config.webhookUrl || '-'}</span></div>
+        <div><b>Binary field:</b> <span style={{ color: '#94a3b8' }}>{config.binaryFieldName || 'data'}</span></div>
       </div>
       <div style={{ fontSize: 13, color: '#cbd5e1', lineHeight: 1.6, marginBottom: 12 }}>
-        Ten job wysyla codziennie o <b>08:00</b> mail na <b>{config.recipientEmail || '-'}</b> z zalacznikiem XLS i tylko z rekordami, ktore nie byly jeszcze wyslane w tym digescie. <b>Test send</b> uderza w ten sam webhook, ale nie oznacza rekordow jako juz wyslane. <b>Send export now</b> robi prawdziwy manualny digest i zapisuje dispatch w DB.
+        Ten job wysyla codziennie o <b>08:00</b> mail na <b>{config.recipientEmail || '-'}</b> z zalacznikiem Excel <b>XLSX</b> i tylko z rekordami, ktore nie byly jeszcze wyslane w tym digescie. <b>Test send</b> uderza w ten sam webhook, ale nie oznacza rekordow jako juz wyslane. <b>Send export now</b> robi prawdziwy manualny digest i zapisuje dispatch w DB.
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button
