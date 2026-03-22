@@ -1,6 +1,8 @@
 import { AppShell, Card, Field, FilterForm, FiltersGrid, StatCard, Table, inputStyle, td, th } from '@/app/components/AppShell.jsx';
+import ExportDigestControlPanel from '@/app/components/ExportDigestControlPanel.jsx';
 import { getSql } from '@/lib/db.js';
 import { formatDateTime } from '@/lib/time.js';
+import { getLeadExportDigestStatus } from '@/lib/export-digest.js';
 import { DEFAULT_EVERGREEN_NAME } from '@/lib/evergreen-config.js';
 import {
   buildLeadExportQueryString,
@@ -31,9 +33,10 @@ export default async function ExportPage({ searchParams }) {
     defaultLimit: PREVIEW_LIMIT,
   });
 
-  const [stats, rows] = await Promise.all([
+  const [stats, rows, digestStatus] = await Promise.all([
     getLeadExportStats(sql, filters),
     listLeadExportRows(sql, filters, { limit: PREVIEW_LIMIT }),
+    getLeadExportDigestStatus(sql),
   ]);
 
   const selectedCampaign = campaignOptions.find((row) => row.id === filters.campaign_id) || null;
@@ -102,7 +105,9 @@ export default async function ExportPage({ searchParams }) {
         </FiltersGrid>
       </FilterForm>
 
-      <section style={{ display: 'grid', gridTemplateColumns: '1.15fr 0.85fr', gap: 16, marginBottom: 20 }}>
+      <section style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+        <ExportDigestControlPanel initial={digestStatus} />
+
         <Card>
           <h2 style={{ marginTop: 0 }}>Export actions</h2>
           <div style={{ fontSize: 14, color: '#cbd5e1', lineHeight: 1.7, marginBottom: 14 }}>
@@ -119,6 +124,9 @@ export default async function ExportPage({ searchParams }) {
           </pre>
         </Card>
 
+      </section>
+
+      <section style={{ display: 'grid', gridTemplateColumns: '1.15fr 0.85fr', gap: 16, marginBottom: 20 }}>
         <Card>
           <h2 style={{ marginTop: 0 }}>Current export scope</h2>
           <Table>

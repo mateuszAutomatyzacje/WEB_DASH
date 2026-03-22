@@ -264,6 +264,38 @@ CREATE TABLE IF NOT EXISTS report_snapshots (
   CONSTRAINT report_snapshots_unique UNIQUE(snapshot_date, scope)
 );
 
+CREATE TABLE IF NOT EXISTS lead_export_runs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  run_key text,
+  run_kind text NOT NULL DEFAULT 'scheduled',
+  recipient_email text NOT NULL,
+  campaign_id uuid REFERENCES campaigns(id) ON DELETE SET NULL,
+  campaign_name text,
+  scope text NOT NULL,
+  email_filter text NOT NULL DEFAULT 'with_email',
+  updated_window text NOT NULL DEFAULT 'all',
+  status text NOT NULL,
+  record_count int NOT NULL DEFAULT 0,
+  attachment_filename text,
+  webhook_url text,
+  error text,
+  details jsonb NOT NULL DEFAULT '{}',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  completed_at timestamptz
+);
+
+CREATE TABLE IF NOT EXISTS lead_export_dispatches (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  run_id uuid REFERENCES lead_export_runs(id) ON DELETE SET NULL,
+  recipient_email text NOT NULL,
+  lead_id uuid NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+  lead_contact_id uuid NOT NULL REFERENCES lead_contacts(id) ON DELETE CASCADE,
+  campaign_id uuid REFERENCES campaigns(id) ON DELETE SET NULL,
+  delivered_at timestamptz NOT NULL DEFAULT now(),
+  details jsonb NOT NULL DEFAULT '{}',
+  CONSTRAINT lead_export_dispatches_unique UNIQUE(recipient_email, lead_id, lead_contact_id)
+);
+
 -- ========= INDEXES =========
 
 CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
@@ -295,6 +327,9 @@ CREATE INDEX IF NOT EXISTS idx_msg_events_type ON message_events(event_type, cre
 CREATE INDEX IF NOT EXISTS idx_app_runtime_logs_created_at ON app_runtime_logs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_app_runtime_logs_scope_created_at ON app_runtime_logs(scope, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_app_runtime_logs_campaign_created_at ON app_runtime_logs(campaign_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_lead_export_runs_created_at ON lead_export_runs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_lead_export_runs_recipient_created_at ON lead_export_runs(recipient_email, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_lead_export_dispatches_recipient_delivered_at ON lead_export_dispatches(recipient_email, delivered_at DESC);
 
 -- ========= OPTIONAL DEDUPE (v2) =========
 -- Turn on if you want hard dedupe when hashes are present.
