@@ -25,12 +25,17 @@ function renderNextDue(nextDue) {
   return `${who} | ${company} | attempt ${nextDue.contact_attempt_no ?? '-'} | ${when}`;
 }
 
+function campaignStatusAllowsEmailAutomation(status) {
+  return ['running', 'paused', 'stopped'].includes(String(status || '').trim().toLowerCase());
+}
+
 export default function EmailSendingControlPanel({ campaignName, campaignId, initial, campaignStatus = 'unknown' }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState('');
   const [state, setState] = useState(initial);
   const [result, setResult] = useState(null);
+  const sendAllowedByCampaignStatus = campaignStatusAllowsEmailAutomation(state.campaign_status || campaignStatus);
 
   function applyState(data, fallbackStatus) {
     const settings = data?.settings || {};
@@ -105,15 +110,19 @@ export default function EmailSendingControlPanel({ campaignName, campaignId, ini
         <div><b>Next due email:</b> {renderNextDue(state.next_due_email)}</div>
         <div><b>Last send result:</b> {renderLastResult(state.last_scheduler_result)}</div>
       </div>
-      {state.campaign_status !== 'running' ? (
+      {!sendAllowedByCampaignStatus ? (
         <div style={{ fontSize: 13, color: '#fca5a5', lineHeight: 1.6, marginBottom: 12 }}>
-          Automation is blocked while the overall campaign status is <b>{state.campaign_status || campaignStatus || 'unknown'}</b>. Auto-mailing and scheduler runs require the campaign itself to be <b>running</b>.
+          Auto-mailing is blocked while the overall campaign status is <b>{state.campaign_status || campaignStatus || 'unknown'}</b>. Automatic email sending is allowed only for campaigns in <b>running</b>, <b>paused</b> or <b>stopped</b> state.
         </div>
-      ) : null}
+      ) : (
+        <div style={{ fontSize: 13, color: '#cbd5e1', lineHeight: 1.6, marginBottom: 12 }}>
+          Auto-mailing keeps working for records with state <b>in_campaign</b> even if the overall campaign is <b>paused</b> or <b>stopped</b>. Only lead sync still requires the campaign itself to be <b>running</b>.
+        </div>
+      )}
       <div style={{ fontSize: 13, color: '#cbd5e1', lineHeight: 1.6, marginBottom: 12 }}>
         <b>Test send</b> wysyla przykladowa wiadomosc na <b>mateusz.wiszniowski.biznes@gmail.com</b>, robi request do n8n i nie przesuwa sekwencji kampanii. <b>Send now (LIVE)</b> oraz scheduler <code>POST /api/admin/campaign/cron-sync</code> robia prawdziwy progression kampanii.
         Auto-mailing dziala wedlug <code>send_email_interval_min</code> z DB.
-        Wysylka <b>LIVE</b> dziala tylko w oknie <b>08:00-15:15</b> czasu lokalnego i nie wysyla nic w <b>sobote oraz niedziele</b>; test webhook pozostaje dostepny niezaleznie od tego okna. Dodatkowo scheduler automatyczny wymaga globalnego statusu kampanii <b>running</b>.
+        Wysylka <b>LIVE</b> dziala tylko w oknie <b>08:00-15:15</b> czasu lokalnego i nie wysyla nic w <b>sobote oraz niedziele</b>; test webhook pozostaje dostepny niezaleznie od tego okna.
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button onClick={() => run('start')} disabled={loading} style={{ background: '#111827', color: '#f8fafc', border: '1px solid #374151', borderRadius: 8, padding: '8px 10px' }}>{loading ? '...' : 'Start sending emails'}</button>
